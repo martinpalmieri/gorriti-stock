@@ -1,0 +1,13 @@
+{
+  "name": "gorriti-stock",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev-server.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit && eslint scripts tests",
+    "build": "tsc && node scripts/build.mjs",
+    "e2e": "node --test tests/e2e/app-shell.test.mjs"
+  }
+}
