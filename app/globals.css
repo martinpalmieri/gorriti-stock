@@ -37,3 +37,12 @@ button,
 a {
   -webkit-tap-highlight-color: transparent;
 }
+
+/* Force readable contrast for primary UI actions. */
+.ui-button--primary,
+.ui-nav-item--active {
+  background-color: #0c0a09 !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+

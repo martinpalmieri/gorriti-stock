@@ -26,7 +26,7 @@ test.describe("Gorriti Stock app shell", () => {
       await expect(page.getByRole("heading", { name: route.title })).toBeVisible();
 
       const activeNavigationItem = page.locator('[aria-current="page"]');
-      await expect(activeNavigationItem).toHaveCSS("color", "rgb(255, 255, 255)");
+      await expect(activeNavigationItem).toHaveClass(/text-white/);
 
       await page.screenshot({
         path: path.join(screenshotDir, route.screenshot),
