@@ -18,13 +18,19 @@ export default function InventoryPage() {
       <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-stone-200">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-xl font-bold">Listado preliminar</h3>
-          <button className="rounded-2xl border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-700" type="button">
+          <button
+            className="rounded-2xl border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-700 transition hover:border-stone-400 hover:bg-stone-100 hover:text-stone-950 active:bg-stone-200 active:text-stone-950 disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-700"
+            type="button"
+          >
             Añadir producto próximamente
           </button>
         </div>
         <div className="mt-5 grid gap-3">
           {mockedProducts.map((product) => (
-            <article key={product.name} className="flex flex-col gap-3 rounded-2xl border border-stone-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <article
+              key={product.name}
+              className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-4 text-stone-900 transition hover:border-stone-300 hover:bg-stone-50 sm:flex-row sm:items-center sm:justify-between"
+            >
               <div>
                 <p className="font-semibold">{product.name}</p>
                 <p className="text-sm text-stone-500">{product.category}</p>

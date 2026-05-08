@@ -1,24 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+
+function subscribeToNetworkStatus(onStoreChange: () => void) {
+  window.addEventListener("online", onStoreChange);
+  window.addEventListener("offline", onStoreChange);
+
+  return () => {
+    window.removeEventListener("online", onStoreChange);
+    window.removeEventListener("offline", onStoreChange);
+  };
+}
+
+function getNetworkStatus() {
+  return navigator.onLine;
+}
+
+function getServerNetworkStatus() {
+  return true;
+}
 
 export function OnlineStatus() {
-  const [isOnline, setIsOnline] = useState(true);
-
-  useEffect(() => {
-    setIsOnline(navigator.onLine);
-
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
+  const isOnline = useSyncExternalStore(
+    subscribeToNetworkStatus,
+    getNetworkStatus,
+    getServerNetworkStatus,
+  );
 
   return (
     <div

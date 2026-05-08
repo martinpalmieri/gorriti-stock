@@ -24,7 +24,7 @@ export default function DashboardPage() {
           </div>
           <a
             href="/sales/new"
-            className="inline-flex rounded-2xl bg-stone-950 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-stone-800"
+            className="inline-flex rounded-2xl bg-stone-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-stone-800 hover:text-white active:bg-stone-950 active:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-700"
           >
             Crear nueva venta
           </a>
@@ -47,7 +47,12 @@ export default function DashboardPage() {
             <h3 className="text-xl font-bold">Últimas ventas</h3>
             <p className="mt-1 text-sm text-stone-500">Actividad simulada del día.</p>
           </div>
-          <a className="text-sm font-semibold text-amber-700 hover:text-amber-900" href="/sales">Ver ventas</a>
+          <a
+            className="rounded-lg text-sm font-semibold text-amber-700 transition hover:text-amber-900 active:text-stone-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-700"
+            href="/sales"
+          >
+            Ver ventas
+          </a>
         </div>
         <div className="mt-5 overflow-hidden rounded-2xl border border-stone-200">
           <table className="w-full text-left text-sm">
