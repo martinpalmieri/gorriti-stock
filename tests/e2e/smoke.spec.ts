@@ -6,6 +6,16 @@ const screenshotDir = path.join(process.cwd(), "docs", "screenshots");
 
 fs.mkdirSync(screenshotDir, { recursive: true });
 
+async function loginForE2E(page: import("@playwright/test").Page) {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("tienda@gorriti.local");
+  await page.getByLabel("Contraseña").fill("gorriti-demo");
+  await page.getByRole("button", { name: "Iniciar sesión" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Resumen de la tienda" }),
+  ).toBeVisible();
+}
+
 const routes = [
   {
     path: "/",
@@ -34,10 +44,54 @@ const routes = [
   },
 ];
 
+
+test.describe("Supabase Auth foundation", () => {
+  test("redirects to login and captures the login page", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.context().clearCookies();
+    await page.goto("/");
+
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(
+      page.getByRole("heading", { name: "Acceso privado" }),
+    ).toBeVisible();
+
+    await page.screenshot({
+      path: path.join(screenshotDir, "auth-login.png"),
+      fullPage: true,
+    });
+  });
+
+  test("logs in and captures the protected dashboard", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await loginForE2E(page);
+
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole("button", { name: "Cerrar sesión" })).toBeVisible();
+
+    await page.screenshot({
+      path: path.join(screenshotDir, "auth-dashboard.png"),
+      fullPage: true,
+    });
+  });
+
+  test("logs out and returns to login", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await loginForE2E(page);
+    await page.getByRole("button", { name: "Cerrar sesión" }).click();
+
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(
+      page.getByRole("heading", { name: "Acceso privado" }),
+    ).toBeVisible();
+  });
+});
+
 test.describe("Gorriti Stock app shell", () => {
   for (const route of routes) {
     test(`renders ${route.path} and captures screenshot`, async ({ page }) => {
       await page.setViewportSize({ width: 1440, height: 1000 });
+      await loginForE2E(page);
       await page.goto(route.path);
 
       await expect(page).toHaveTitle(/Gorriti Stock/i);
@@ -63,6 +117,7 @@ test.describe("Gorriti Stock app shell", () => {
 test.describe("Mocked inventory UI", () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
+    await loginForE2E(page);
     await page.goto("/inventory");
     await expect(
       page.getByRole("heading", { name: "Productos" }),
@@ -164,6 +219,7 @@ test.describe("Mocked inventory UI", () => {
 test.describe("Mocked nueva venta flow", () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
+    await loginForE2E(page);
     await page.goto("/sales/new");
     await expect(
       page.getByRole("heading", { name: "Venta manual" }),
