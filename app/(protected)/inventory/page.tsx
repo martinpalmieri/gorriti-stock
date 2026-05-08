@@ -1,5 +1,5 @@
-import { InventoryHeader } from "../_components/inventory/inventory-header";
-import { ProductList } from "../_components/inventory/product-list";
+import { InventoryHeader } from "../../_components/inventory/inventory-header";
+import { ProductList } from "../../_components/inventory/product-list";
 
 export default function InventoryPage() {
   return (

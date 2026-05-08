@@ -1,5 +1,5 @@
-import { SalesHeader } from "../_components/sales/sales-header";
-import { SalesList } from "../_components/sales/sales-list";
+import { SalesHeader } from "../../_components/sales/sales-header";
+import { SalesList } from "../../_components/sales/sales-list";
 
 const mockedSales = [
   { id: "V-1042", date: "Hoy, 12:45", total: "€31", status: "Manual" },

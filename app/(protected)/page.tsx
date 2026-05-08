@@ -1,6 +1,6 @@
-import { DashboardHeader } from "./_components/dashboard/dashboard-header";
-import { LatestSales } from "./_components/dashboard/latest-sales";
-import { SummaryCards } from "./_components/dashboard/summary-cards";
+import { DashboardHeader } from "../_components/dashboard/dashboard-header";
+import { LatestSales } from "../_components/dashboard/latest-sales";
+import { SummaryCards } from "../_components/dashboard/summary-cards";
 
 const summaryCards = [
   { label: "Ventas de hoy", value: "€342", detail: "8 ventas registradas", tone: "bg-amber-100 text-amber-900" },
