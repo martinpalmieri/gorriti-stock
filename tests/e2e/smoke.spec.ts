@@ -1,14 +1,17 @@
 import { expect, test } from "@playwright/test";
+import fs from "node:fs";
 import path from "node:path";
 
 const screenshotDir = path.join(process.cwd(), "docs", "screenshots");
 
+fs.mkdirSync(screenshotDir, { recursive: true });
+
 const routes = [
-  { path: "/", title: "Resumen de la tienda", screenshot: "dashboard.png" },
-  { path: "/inventory", title: "Productos", screenshot: "inventory.png" },
-  { path: "/sales/new", title: "Venta manual", screenshot: "new-sale.png" },
-  { path: "/sales", title: "Historial de ventas", screenshot: "sales.png" },
-  { path: "/settings", title: "Configuración", screenshot: "settings.png" },
+  { path: "/", title: "Resumen de la tienda", screenshot: "contrast-dashboard.png" },
+  { path: "/inventory", title: "Productos", screenshot: "contrast-inventory.png" },
+  { path: "/sales/new", title: "Venta manual", screenshot: "contrast-new-sale.png" },
+  { path: "/sales", title: "Historial de ventas", screenshot: "contrast-sales.png" },
+  { path: "/settings", title: "Configuración", screenshot: "contrast-settings.png" },
 ];
 
 test.describe("Gorriti Stock app shell", () => {
@@ -21,6 +24,9 @@ test.describe("Gorriti Stock app shell", () => {
       await expect(page.getByRole("navigation", { name: "Navegación principal" })).toBeVisible();
       await expect(page.getByText("En línea")).toBeVisible();
       await expect(page.getByRole("heading", { name: route.title })).toBeVisible();
+
+      const activeNavigationItem = page.locator('[aria-current="page"]');
+      await expect(activeNavigationItem).toHaveClass(/text-white/);
 
       await page.screenshot({
         path: path.join(screenshotDir, route.screenshot),
