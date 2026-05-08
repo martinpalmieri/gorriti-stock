@@ -46,3 +46,26 @@ a {
   opacity: 1 !important;
 }
 
+
+.field-control {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid #d6d3d1;
+  background: #ffffff;
+  padding: 0.75rem 1rem;
+  color: #0c0a09;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+  outline: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.field-control::placeholder {
+  color: #78716c;
+}
+
+.field-control:focus {
+  border-color: #1c1917;
+  box-shadow: 0 0 0 2px rgb(28 25 23 / 0.2);
+}

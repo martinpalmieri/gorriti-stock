@@ -8,9 +8,9 @@ export function InventoryHeader() {
         Productos
       </h2>
       <p className="mt-3 max-w-2xl text-stone-600">
-        Vista simulada para consultar productos de Gorriti. Los datos son
-        locales y temporales: todavía no hay CRUD, Supabase ni movimientos
-        reales de stock.
+        Consulta productos reales de Supabase, crea nuevas fichas y edita la
+        información comercial sin modificar directamente el stock después del
+        alta inicial.
       </p>
     </header>
   );
