@@ -160,3 +160,96 @@ test.describe("Mocked inventory UI", () => {
     });
   });
 });
+
+test.describe("Mocked nueva venta flow", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto("/sales/new");
+    await expect(
+      page.getByRole("heading", { name: "Venta manual" }),
+    ).toBeVisible();
+  });
+
+  test("captures the empty mocked sale state", async ({ page }) => {
+    await expect(page.getByText("Carrito vacío")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Confirmar venta" }),
+    ).toBeDisabled();
+
+    await page.screenshot({
+      path: path.join(screenshotDir, "sale-empty.png"),
+      fullPage: true,
+    });
+  });
+
+  test("searches mocked products and captures matching results", async ({
+    page,
+  }) => {
+    await page.getByLabel("Buscar producto para la venta").fill("Gorriti");
+
+    await expect(page.getByText("Print Huelin")).toBeVisible();
+    await expect(page.getByText("Fanzine Gorriti 01")).toBeVisible();
+    await expect(page.getByText("Unknown Pleasures")).toHaveCount(0);
+
+    await page.screenshot({
+      path: path.join(screenshotDir, "sale-search-results.png"),
+      fullPage: true,
+    });
+  });
+
+  test("adds multiple products and captures the cart total", async ({ page }) => {
+    await page.getByRole("button", { name: "Añadir Unknown Pleasures" }).click();
+    await page.getByRole("button", { name: "Añadir Cuaderno A5" }).click();
+    await page
+      .getByRole("button", { name: "Aumentar cantidad de Cuaderno A5" })
+      .click();
+
+    await expect(page.getByLabel("Carrito de venta")).toContainText(
+      "Unknown Pleasures",
+    );
+    await expect(page.getByLabel("Carrito de venta")).toContainText(
+      "Cuaderno A5",
+    );
+    await expect(page.getByLabel("Carrito de venta")).toContainText("40,00");
+
+    await page.screenshot({
+      path: path.join(screenshotDir, "sale-cart.png"),
+      fullPage: true,
+    });
+  });
+
+  test("captures stock limit controls for a one-stock product", async ({ page }) => {
+    await page.getByLabel("Buscar producto para la venta").fill("El Aleph");
+    await page.getByRole("button", { name: "Añadir El Aleph" }).click();
+
+    await expect(
+      page.getByText("Límite de stock alcanzado: 1 unidad disponible."),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Aumentar cantidad de El Aleph" }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole("button", { name: "Añadir El Aleph" }),
+    ).toBeDisabled();
+
+    await page.screenshot({
+      path: path.join(screenshotDir, "sale-stock-limit.png"),
+      fullPage: true,
+    });
+  });
+
+  test("confirms a mocked sale and captures success state", async ({ page }) => {
+    await page.getByRole("button", { name: "Añadir Print Huelin" }).click();
+    await page.getByText("Efectivo").click();
+    await page.getByRole("button", { name: "Confirmar venta" }).click();
+
+    await expect(page.getByText("Venta confirmada")).toBeVisible();
+    await expect(page.getByText("18,00")).toBeVisible();
+    await expect(page.getByText(/Pago: Efectivo/)).toBeVisible();
+
+    await page.screenshot({
+      path: path.join(screenshotDir, "sale-success.png"),
+      fullPage: true,
+    });
+  });
+});
