@@ -5,7 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import type { SupabaseTableClient } from "@/lib/inventory/supabase-types";
 import {
   createFallbackProduct,
+  correctFallbackStock,
   getFallbackCategories,
+  getFallbackStockMovements,
   updateFallbackProduct,
 } from "@/lib/inventory/mock-store";
 import {
@@ -14,6 +16,26 @@ import {
   type ProductConditionValue,
 } from "@/lib/inventory/types";
 import type { ProductFormState } from "./product-form-state";
+
+type StockMovement = {
+  id: string;
+  type: string;
+  quantityChange: number;
+  stockBefore: number;
+  stockAfter: number;
+  reason: string | null;
+  createdAt: string | null;
+};
+
+type StockMovementsResult =
+  | { status: "success"; movements: StockMovement[] }
+  | { status: "error"; message: string; movements: StockMovement[] };
+
+type StockCorrectionState = {
+  status: "idle" | "success" | "error";
+  message: string | null;
+  fieldErrors: Partial<Record<"adjustment" | "reason", string>>;
+};
 
 type ProductFormValues = {
   name: string;
@@ -33,7 +55,8 @@ type ProductFormValues = {
 
 function hasSupabasePublicEnv() {
   return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.PLAYWRIGHT_BYPASS_AUTH !== "1" &&
+      process.env.NEXT_PUBLIC_SUPABASE_URL &&
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   );
 }
@@ -49,6 +72,31 @@ function optionalNumber(value: FormDataEntryValue | null) {
 
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : Number.NaN;
+}
+
+function requiredText(value: FormDataEntryValue | null) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function requiredInteger(value: FormDataEntryValue | null) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  if (value.trim() === "") {
+    return null;
+  }
+
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue) || !Number.isInteger(numberValue)) {
+    return Number.NaN;
+  }
+
+  return numberValue;
 }
 
 function parseProductForm(
@@ -311,6 +359,162 @@ export async function updateProduct(
   return {
     status: "success",
     message: "Producto actualizado",
+    fieldErrors: {},
+  };
+}
+
+export async function getProductStockMovements(
+  productId: string,
+): Promise<StockMovementsResult> {
+  const normalizedProductId = productId.trim();
+
+  if (!normalizedProductId) {
+    return { status: "error", message: "No se encontró el producto.", movements: [] };
+  }
+
+  if (!hasSupabasePublicEnv()) {
+    return { status: "success", movements: getFallbackStockMovements(normalizedProductId) };
+  }
+
+  type StockMovementRow = {
+    id: string;
+    type: string;
+    quantity_change: number;
+    stock_before: number;
+    stock_after: number;
+    reason: string | null;
+    created_at: string | null;
+  };
+
+  const supabase = (await createClient() as unknown) as SupabaseTableClient;
+  const { data, error } = await supabase
+    .from<StockMovementRow>("stock_movements")
+    .select("id, type, quantity_change, stock_before, stock_after, reason, created_at")
+    .eq("product_id", normalizedProductId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return { status: "error", message: error.message, movements: [] };
+  }
+
+  const movements: StockMovement[] = (data ?? []).slice(0, 20).map((row) => ({
+    id: row.id,
+    type: row.type,
+    quantityChange: row.quantity_change,
+    stockBefore: row.stock_before,
+    stockAfter: row.stock_after,
+    reason: row.reason ?? null,
+    createdAt: row.created_at ?? null,
+  }));
+
+  return { status: "success", movements };
+}
+
+export async function correctProductStock(
+  previousState: StockCorrectionState,
+  formData: FormData,
+): Promise<StockCorrectionState> {
+  const productId = requiredText(formData.get("productId"));
+  const adjustment = requiredInteger(formData.get("adjustment"));
+  const reason = requiredText(formData.get("reason"));
+  const fieldErrors: StockCorrectionState["fieldErrors"] = {};
+
+  if (!productId) {
+    return {
+      ...previousState,
+      status: "error",
+      message: "No se encontró el producto.",
+    };
+  }
+
+  if (adjustment === null) {
+    fieldErrors.adjustment = "El ajuste es obligatorio.";
+  } else if (Number.isNaN(adjustment)) {
+    fieldErrors.adjustment = "El ajuste debe ser un entero.";
+  } else if (adjustment === 0) {
+    fieldErrors.adjustment = "El ajuste no puede ser 0.";
+  }
+
+  if (!reason) {
+    fieldErrors.reason = "El motivo es obligatorio.";
+  }
+
+  if (Object.keys(fieldErrors).length > 0) {
+    return {
+      status: "error",
+      message: "Revisa los campos marcados.",
+      fieldErrors,
+    };
+  }
+
+  if (!hasSupabasePublicEnv()) {
+    const result = correctFallbackStock({
+      productId,
+      adjustment: adjustment ?? 0,
+      reason,
+    });
+
+    if (result.status === "error") {
+      return { status: "error", message: result.message, fieldErrors: {} };
+    }
+
+    revalidatePath("/inventory");
+    return { status: "success", message: "Stock corregido", fieldErrors: {} };
+  }
+
+  const supabase = (await createClient() as unknown) as SupabaseTableClient;
+  const { data: product, error: productError } = await supabase
+    .from<{ id: string; current_stock: number }>("products")
+    .select("id, current_stock")
+    .eq("id", productId)
+    .single();
+
+  if (productError || !product) {
+    return {
+      status: "error",
+      message: productError?.message ?? "No se encontró el producto.",
+      fieldErrors: {},
+    };
+  }
+
+  const stockBefore = product.current_stock;
+  const stockAfter = stockBefore + (adjustment ?? 0);
+
+  if (stockAfter < 0) {
+    return {
+      status: "error",
+      message: "El stock resultante no puede ser menor a 0.",
+      fieldErrors: { adjustment: "Este ajuste dejaría el stock en negativo." },
+    };
+  }
+
+  const { error: movementError } = await supabase.from("stock_movements").insert({
+    product_id: productId,
+    type: "manual_correction",
+    quantity_change: adjustment,
+    stock_before: stockBefore,
+    stock_after: stockAfter,
+    reason,
+  });
+
+  if (movementError) {
+    return { status: "error", message: movementError.message, fieldErrors: {} };
+  }
+
+  const { error: updateError } = await supabase
+    .from("products")
+    .update({ current_stock: stockAfter })
+    .eq("id", productId);
+
+  if (updateError) {
+    return { status: "error", message: updateError.message, fieldErrors: {} };
+  }
+
+  revalidatePath("/inventory");
+
+  return {
+    status: "success",
+    message: "Stock corregido",
     fieldErrors: {},
   };
 }

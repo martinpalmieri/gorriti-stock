@@ -8,6 +8,10 @@ export default async function ProtectedLayout({
 }: Readonly<{
   children: ReactNode;
 }>) {
+  if (process.env.PLAYWRIGHT_BYPASS_AUTH === "1") {
+    return <AppShell userEmail="playwright@gorriti.local">{children}</AppShell>;
+  }
+
   const supabase = await createClient();
   const {
     data: { user },

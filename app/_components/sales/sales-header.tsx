@@ -4,6 +4,9 @@ export function SalesHeader() {
       <p className="text-sm font-semibold uppercase tracking-[0.24em] text-amber-700">
         Ventas
       </p>
+      <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+        Historial de ventas
+      </h2>
     </header>
   );
 }

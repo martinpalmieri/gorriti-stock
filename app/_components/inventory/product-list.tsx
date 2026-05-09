@@ -15,6 +15,8 @@ import type {
 } from "@/lib/inventory/types";
 import {
   createProduct,
+  getProductStockMovements,
+  correctProductStock,
   updateProduct,
 } from "@/app/(protected)/inventory/actions";
 import { initialProductFormState } from "@/app/(protected)/inventory/product-form-state";
@@ -49,6 +51,28 @@ type FormMode =
   | { type: "closed" }
   | { type: "create" }
   | { type: "edit"; product: Product };
+
+type StockMovement = {
+  id: string;
+  type: string;
+  quantityChange: number;
+  stockBefore: number;
+  stockAfter: number;
+  reason: string | null;
+  createdAt: string | null;
+};
+
+type StockCorrectionFormState = {
+  status: "idle" | "success" | "error";
+  message: string | null;
+  fieldErrors: Partial<Record<"adjustment" | "reason", string>>;
+};
+
+const initialStockCorrectionState: StockCorrectionFormState = {
+  status: "idle",
+  message: null,
+  fieldErrors: {},
+};
 
 function normalize(value: string) {
   return value.toLocaleLowerCase("es").trim();
@@ -99,10 +123,12 @@ function ProductForm({
   categories,
   mode,
   onClose,
+  onOpenStockCorrection,
 }: {
   categories: Category[];
   mode: Exclude<FormMode, { type: "closed" }>;
   onClose: () => void;
+  onOpenStockCorrection: (product: Product) => void;
 }) {
   const router = useRouter();
   const isEditing = mode.type === "edit";
@@ -201,14 +227,27 @@ function ProductForm({
         </Field>
 
         {isEditing ? (
-          <Field label="Stock actual">
-            <input
-              value={product?.currentStock ?? 0}
-              readOnly
-              aria-readonly="true"
-              className="field-control bg-stone-100 font-bold text-stone-700"
-            />
-          </Field>
+          <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+            <p className="text-sm font-semibold text-stone-800">Stock actual</p>
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <p className="text-2xl font-bold tabular-nums text-stone-950">
+                {product?.currentStock ?? 0}
+              </p>
+              {product ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="px-3 py-2 text-sm"
+                  onClick={() => onOpenStockCorrection(product)}
+                >
+                  Corregir stock
+                </Button>
+              ) : null}
+            </div>
+            <p className="mt-2 text-sm text-stone-600">
+              Para cambiar el stock, usá Corregir stock.
+            </p>
+          </div>
         ) : (
           <Field
             label="Stock inicial"
@@ -346,6 +385,176 @@ function Field({
   );
 }
 
+function formatMovementType(type: string) {
+  switch (type) {
+    case "initial":
+      return "Stock inicial";
+    case "sale":
+      return "Venta";
+    case "manual_correction":
+      return "Corrección manual";
+    case "restock":
+      return "Reposición";
+    case "return":
+      return "Devolución";
+    default:
+      return type;
+  }
+}
+
+function formatMovementQuantity(value: number) {
+  return value > 0 ? `+${value}` : String(value);
+}
+
+function StockCorrectionModal({
+  open,
+  product,
+  onClose,
+  onSuccess,
+}: {
+  open: boolean;
+  product: Product | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const router = useRouter();
+  const [state, formAction, pending] = useActionState(
+    correctProductStock,
+    initialStockCorrectionState,
+  );
+
+  const currentStock = product?.currentStock ?? 0;
+  const fieldErrors = state.fieldErrors ?? {};
+  const [adjustmentValue, setAdjustmentValue] = useState<string>("");
+  const [reasonValue, setReasonValue] = useState<string>("");
+  const adjustmentNumber = Number(adjustmentValue);
+  const adjustment =
+    adjustmentValue.trim() === "" || Number.isNaN(adjustmentNumber)
+      ? null
+      : adjustmentNumber;
+  const resultingStock =
+    adjustment === null ? currentStock : currentStock + adjustment;
+
+  useEffect(() => {
+    if (state.status === "success") {
+      router.refresh();
+      onSuccess();
+      onClose();
+    }
+  }, [onClose, onSuccess, router, state.status]);
+
+  if (!open || !product) {
+    return null;
+  }
+
+  const handleClose = onClose;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Corregir stock"
+    >
+      <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl ring-1 ring-stone-200">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-[0.18em] text-amber-700">
+              Corrección de stock
+            </p>
+            <h3 className="mt-2 text-2xl font-bold text-stone-950">
+              {product.name}
+            </h3>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            className="px-4 py-2"
+            onClick={handleClose}
+          >
+            Cerrar
+          </Button>
+        </div>
+
+        {state.message ? (
+          <p
+            className={`mt-4 rounded-2xl px-4 py-3 text-sm font-semibold ${
+              state.status === "success"
+                ? "bg-emerald-100 text-emerald-900"
+                : "bg-red-100 text-red-900"
+            }`}
+            role="status"
+          >
+            {state.message}
+          </p>
+        ) : null}
+
+        <form action={formAction} className="mt-5 grid gap-4">
+          <input type="hidden" name="productId" value={product.id} />
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl bg-stone-50 p-4 ring-1 ring-stone-200">
+              <p className="text-sm font-semibold text-stone-700">
+                Stock actual
+              </p>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-stone-950">
+                {currentStock}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-stone-50 p-4 ring-1 ring-stone-200">
+              <p className="text-sm font-semibold text-stone-700">Ajuste</p>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-stone-950">
+                {adjustment === null
+                  ? "—"
+                  : formatMovementQuantity(adjustment)}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-stone-50 p-4 ring-1 ring-stone-200">
+              <p className="text-sm font-semibold text-stone-700">
+                Stock resultante
+              </p>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-stone-950">
+                {resultingStock}
+              </p>
+            </div>
+          </div>
+
+          <Field label="Ajuste" error={fieldErrors.adjustment} required>
+            <input
+              name="adjustment"
+              type="number"
+              step="1"
+              value={adjustmentValue}
+              onChange={(event) => setAdjustmentValue(event.target.value)}
+              className="field-control"
+              placeholder="Ej. -1 o 3"
+            />
+          </Field>
+
+          <Field label="Motivo" error={fieldErrors.reason} required>
+            <textarea
+              name="reason"
+              value={reasonValue}
+              onChange={(event) => setReasonValue(event.target.value)}
+              className="field-control min-h-24"
+              placeholder="Ej. Recuento, dañado, pérdida, devolución…"
+            />
+          </Field>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+            <Button type="button" variant="secondary" onClick={handleClose}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? "Guardando…" : "Guardar corrección"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export function ProductList({
   categories,
   products,
@@ -362,11 +571,44 @@ export function ProductList({
   const [selectedProductId, setSelectedProductId] = useState<string | null>(
     null,
   );
+  const [stockCorrectionProduct, setStockCorrectionProduct] =
+    useState<Product | null>(null);
+  const [stockCorrectionOpen, setStockCorrectionOpen] = useState(false);
+  const [stockCorrectionSession, setStockCorrectionSession] = useState(0);
+  const [movements, setMovements] = useState<StockMovement[]>([]);
+  const [movementsError, setMovementsError] = useState<string | null>(null);
 
   const selectedProduct =
     products.find((product) => product.id === selectedProductId) ??
     products[0] ??
     null;
+
+  const fetchMovements = async (productId: string) => {
+    try {
+      setMovementsError(null);
+      const result = await getProductStockMovements(productId);
+      if (result.status === "success") {
+        setMovements(result.movements);
+        return;
+      }
+      setMovements([]);
+      setMovementsError(result.message ?? "No se pudieron cargar los movimientos.");
+    } catch {
+      setMovements([]);
+      setMovementsError("No se pudieron cargar los movimientos.");
+    }
+  };
+
+  const openStockCorrection = (product: Product) => {
+    setStockCorrectionProduct(product);
+    setStockCorrectionOpen(true);
+    setStockCorrectionSession((value) => value + 1);
+  };
+
+  const handleSelectProductId = (productId: string) => {
+    setSelectedProductId(productId);
+    void fetchMovements(productId);
+  };
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -392,7 +634,9 @@ export function ProductList({
     <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-stone-200 sm:p-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h3 className="text-xl font-bold text-stone-950">Inventario</h3>
+          <h2 className="text-3xl font-bold tracking-tight text-stone-950 sm:text-4xl">
+            Productos
+          </h2>
           <p className="mt-1 text-sm text-stone-600">
             Busca por nombre, creador, editorial, sello, código de barras, SKU,
             ISBN o notas.
@@ -420,9 +664,22 @@ export function ProductList({
             categories={categories}
             mode={formMode}
             onClose={() => setFormMode({ type: "closed" })}
+            onOpenStockCorrection={openStockCorrection}
           />
         </div>
       ) : null}
+
+      <StockCorrectionModal
+        key={stockCorrectionSession}
+        open={stockCorrectionOpen}
+        product={stockCorrectionProduct}
+        onClose={() => setStockCorrectionOpen(false)}
+        onSuccess={() => {
+          if (selectedProduct) {
+            void fetchMovements(selectedProduct.id);
+          }
+        }}
+      />
 
       <div className="mt-5 rounded-2xl border border-stone-200 bg-stone-50 p-4 shadow-sm">
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_190px_170px]">
@@ -515,7 +772,7 @@ export function ProductList({
                 <button
                   key={product.id}
                   type="button"
-                  onClick={() => setSelectedProductId(product.id)}
+                  onClick={() => handleSelectProductId(product.id)}
                   className={`grid w-full gap-3 px-4 py-4 text-left transition hover:bg-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-stone-800 md:grid-cols-[minmax(0,1.4fr)_0.9fr_0.8fr_0.7fr] md:items-center ${
                     selectedProduct?.id === product.id
                       ? "bg-amber-50"
@@ -618,16 +875,26 @@ export function ProductList({
                     {selectedProduct.creatorOrAuthor || "Sin creador"}
                   </p>
                 </div>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="px-3 py-2 text-sm"
-                  onClick={() =>
-                    setFormMode({ type: "edit", product: selectedProduct })
-                  }
-                >
-                  Editar producto
-                </Button>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="px-3 py-2 text-sm"
+                    onClick={() => openStockCorrection(selectedProduct)}
+                  >
+                    Corregir stock
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="px-3 py-2 text-sm"
+                    onClick={() =>
+                      setFormMode({ type: "edit", product: selectedProduct })
+                    }
+                  >
+                    Editar producto
+                  </Button>
+                </div>
               </div>
 
               <dl className="mt-5 grid gap-3 text-sm">
@@ -670,6 +937,53 @@ export function ProductList({
                   label="Proveedor"
                   value={selectedProduct.supplier || "Sin especificar"}
                 />
+                <div className="rounded-xl bg-white p-3 ring-1 ring-stone-200">
+                  <dt className="font-semibold text-stone-600">
+                    Movimientos de stock
+                  </dt>
+                  <dd className="mt-3 space-y-2 text-stone-950">
+                    {movementsError ? (
+                      <p className="text-sm font-semibold text-red-800">
+                        {movementsError}
+                      </p>
+                    ) : movements.length === 0 ? (
+                      <p className="text-sm text-stone-600">
+                        Sin movimientos para este producto.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {movements.map((movement) => (
+                          <li
+                            key={movement.id}
+                            className="rounded-xl bg-stone-50 p-3 ring-1 ring-stone-200"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-bold text-stone-900">
+                                  {formatMovementType(movement.type)}
+                                </p>
+                                <p className="mt-1 text-sm text-stone-700">
+                                  {movement.reason || "Sin motivo"}
+                                </p>
+                              </div>
+                              <p className="text-sm font-bold tabular-nums text-stone-950">
+                                {formatMovementQuantity(movement.quantityChange)}
+                              </p>
+                            </div>
+                            <p className="mt-2 text-xs font-medium text-stone-600">
+                              {movement.stockBefore} → {movement.stockAfter}
+                              {movement.createdAt
+                                ? ` · ${new Date(movement.createdAt).toLocaleString(
+                                    "es-ES",
+                                  )}`
+                                : ""}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </dd>
+                </div>
                 <div className="rounded-xl bg-white p-3 ring-1 ring-stone-200">
                   <dt className="font-semibold text-stone-600">Códigos</dt>
                   <dd className="mt-2 space-y-1 text-stone-950">

@@ -14,12 +14,14 @@ const fallbackCategories: Category[] = [
 ];
 
 type StockMovement = {
+  id: string;
   productId: string;
-  type: "initial";
+  type: "initial" | "manual_correction";
   quantityChange: number;
   stockBefore: number;
   stockAfter: number;
   reason: string;
+  createdAt: string;
 };
 
 const globalStore = globalThis as typeof globalThis & {
@@ -56,12 +58,14 @@ export function createFallbackProduct(
   };
   globalStore.gorritiInventoryStore.products.unshift(createdProduct);
   globalStore.gorritiInventoryStore.stockMovements.push({
+    id: `local-movement-${crypto.randomUUID()}`,
     productId: createdProduct.id,
     type: "initial",
     quantityChange: initialStock,
     stockBefore: 0,
     stockAfter: initialStock,
     reason: "Stock inicial",
+    createdAt: now,
   });
 
   return createdProduct;
@@ -81,4 +85,73 @@ export function updateFallbackProduct(
   Object.assign(product, values, { updatedAt: new Date().toISOString() });
 
   return product;
+}
+
+export function getFallbackStockMovements(productId: string) {
+  const store = globalStore.gorritiInventoryStore;
+  const movements = store?.stockMovements ?? [];
+
+  return movements
+    .filter((movement) => movement.productId === productId)
+    .slice()
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map((movement) => ({
+      id: movement.id,
+      type: movement.type,
+      quantityChange: movement.quantityChange,
+      stockBefore: movement.stockBefore,
+      stockAfter: movement.stockAfter,
+      reason: movement.reason,
+      createdAt: movement.createdAt,
+    }));
+}
+
+export function correctFallbackStock(input: {
+  productId: string;
+  adjustment: number;
+  reason: string;
+}): { status: "success" } | { status: "error"; message: string } {
+  const store = globalStore.gorritiInventoryStore;
+  const product = store?.products.find((item) => item.id === input.productId);
+
+  if (!store || !product) {
+    return { status: "error", message: "No se encontró el producto." };
+  }
+
+  if (!Number.isInteger(input.adjustment)) {
+    return { status: "error", message: "El ajuste debe ser un entero." };
+  }
+
+  if (input.adjustment === 0) {
+    return { status: "error", message: "El ajuste no puede ser 0." };
+  }
+
+  const reason = input.reason.trim();
+  if (!reason) {
+    return { status: "error", message: "El motivo es obligatorio." };
+  }
+
+  const stockBefore = product.currentStock;
+  const stockAfter = stockBefore + input.adjustment;
+
+  if (stockAfter < 0) {
+    return { status: "error", message: "El stock resultante no puede ser menor a 0." };
+  }
+
+  const now = new Date().toISOString();
+  product.currentStock = stockAfter;
+  product.updatedAt = now;
+
+  store.stockMovements.push({
+    id: `local-movement-${crypto.randomUUID()}`,
+    productId: product.id,
+    type: "manual_correction",
+    quantityChange: input.adjustment,
+    stockBefore,
+    stockAfter,
+    reason,
+    createdAt: now,
+  });
+
+  return { status: "success" };
 }
