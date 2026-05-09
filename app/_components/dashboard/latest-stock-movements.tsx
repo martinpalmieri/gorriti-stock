@@ -20,10 +20,10 @@ function formatDateTime(value: string | null) {
 
 export function LatestStockMovements({ movements }: LatestStockMovementsProps) {
   return (
-    <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-stone-200">
+    <section className="rounded-lg border border-stone-200 bg-white p-4">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h3 className="text-xl font-bold">Últimos movimientos</h3>
+          <h3 className="text-lg font-semibold">Últimos movimientos</h3>
           <p className="mt-1 text-sm text-stone-500">
             Cambios recientes de inventario.
           </p>
@@ -33,33 +33,33 @@ export function LatestStockMovements({ movements }: LatestStockMovementsProps) {
         </LinkButton>
       </div>
       {movements.length === 0 ? (
-        <p className="mt-6 rounded-2xl border border-dashed border-stone-200 bg-stone-50 px-4 py-8 text-center text-sm text-stone-600">
+        <p className="mt-4 rounded-lg border border-dashed border-stone-200 bg-stone-50 px-3 py-6 text-center text-sm text-stone-600">
           Sin movimientos todavía
         </p>
       ) : (
-        <div className="mt-5 overflow-hidden rounded-2xl border border-stone-200">
+        <div className="mt-4 overflow-hidden rounded-lg border border-stone-200">
           <table className="w-full text-left text-sm">
-            <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+            <thead className="bg-stone-50 text-xs font-medium text-stone-600">
               <tr>
-                <th className="px-4 py-3">Producto</th>
-                <th className="px-4 py-3">Tipo</th>
-                <th className="px-4 py-3 text-right">Cantidad</th>
-                <th className="px-4 py-3">Fecha</th>
+                <th className="px-3 py-2">Producto</th>
+                <th className="px-3 py-2">Tipo</th>
+                <th className="px-3 py-2 text-right">Cantidad</th>
+                <th className="px-3 py-2">Fecha</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-200">
               {movements.map((row) => (
                 <tr key={row.id}>
-                  <td className="px-4 py-4 font-medium text-stone-900">
+                  <td className="px-3 py-2 font-medium text-stone-900">
                     {row.productName}
                   </td>
-                  <td className="px-4 py-4 text-stone-600">
+                  <td className="px-3 py-2 text-stone-600">
                     {row.movementTypeLabel}
                   </td>
-                  <td className="px-4 py-4 text-right font-semibold tabular-nums">
+                  <td className="px-3 py-2 text-right font-semibold tabular-nums">
                     {row.quantityDisplay}
                   </td>
-                  <td className="px-4 py-4 text-stone-600">
+                  <td className="px-3 py-2 text-stone-600">
                     {formatDateTime(row.createdAt)}
                   </td>
                 </tr>

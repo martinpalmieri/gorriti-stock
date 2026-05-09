@@ -46,10 +46,10 @@ function paymentMethodLabel(
 
 export function LatestSales({ sales }: LatestSalesProps) {
   return (
-    <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-stone-200">
+    <section className="rounded-lg border border-stone-200 bg-white p-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-xl font-bold">Últimas ventas</h3>
+          <h3 className="text-lg font-semibold">Últimas ventas</h3>
           <p className="mt-1 text-sm text-stone-500">
             Las cinco ventas confirmadas más recientes.
           </p>
@@ -61,33 +61,33 @@ export function LatestSales({ sales }: LatestSalesProps) {
         </div>
       </div>
       {sales.length === 0 ? (
-        <p className="mt-6 rounded-2xl border border-dashed border-stone-200 bg-stone-50 px-4 py-8 text-center text-sm text-stone-600">
+        <p className="mt-4 rounded-lg border border-dashed border-stone-200 bg-stone-50 px-3 py-6 text-center text-sm text-stone-600">
           Sin ventas todavía
         </p>
       ) : (
-        <div className="mt-5 overflow-hidden rounded-2xl border border-stone-200">
+        <div className="mt-4 overflow-hidden rounded-lg border border-stone-200">
           <table className="w-full text-left text-sm">
-            <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+            <thead className="bg-stone-50 text-xs font-medium text-stone-600">
               <tr>
-                <th className="px-4 py-3">Fecha y hora</th>
-                <th className="px-4 py-3">Pago</th>
-                <th className="px-4 py-3 text-right">Ítems</th>
-                <th className="px-4 py-3 text-right">Total</th>
+                <th className="px-3 py-2">Fecha y hora</th>
+                <th className="px-3 py-2">Pago</th>
+                <th className="px-3 py-2 text-right">Ítems</th>
+                <th className="px-3 py-2 text-right">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-200">
               {sales.map((sale) => (
                 <tr key={sale.id}>
-                  <td className="px-4 py-4 text-stone-700">
+                  <td className="px-3 py-2 text-stone-700">
                     {formatDateTime(sale.createdAt)}
                   </td>
-                  <td className="px-4 py-4 text-stone-600">
+                  <td className="px-3 py-2 text-stone-600">
                     {paymentMethodLabel(sale.paymentMethod)}
                   </td>
-                  <td className="px-4 py-4 text-right tabular-nums text-stone-700">
+                  <td className="px-3 py-2 text-right tabular-nums text-stone-700">
                     {sale.itemCount}
                   </td>
-                  <td className="px-4 py-4 text-right font-semibold">
+                  <td className="px-3 py-2 text-right font-semibold">
                     {formatCurrency(sale.totalAmount)}
                   </td>
                 </tr>

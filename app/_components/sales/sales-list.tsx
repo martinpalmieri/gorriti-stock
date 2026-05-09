@@ -94,18 +94,20 @@ export function SalesList({ sales, loadError, initialSaleDetail }: SalesListProp
 
   return (
     <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-      <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-stone-200">
-        <h3 className="text-xl font-bold text-stone-950">Historial de ventas</h3>
+      <div className="rounded-lg border border-stone-200 bg-white p-4">
+        <h3 className="text-lg font-semibold text-stone-950">Historial de ventas</h3>
 
         {loadError ? (
-          <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-900">
+          <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-900">
             No se pudo cargar Supabase: {loadError}
           </p>
         ) : null}
 
         {sales.length === 0 && !loadError ? (
-          <div className="mt-5 rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-6 text-center">
-            <p className="text-lg font-bold text-stone-950">Sin ventas todavía</p>
+          <div className="mt-4 rounded-lg border border-dashed border-stone-300 bg-stone-50 p-4 text-center">
+            <p className="text-base font-semibold text-stone-950">
+              Sin ventas todavía
+            </p>
             <p className="mt-2 text-sm text-stone-600">
               Cuando confirmes una venta, aparecerá aquí.
             </p>
@@ -113,8 +115,8 @@ export function SalesList({ sales, loadError, initialSaleDetail }: SalesListProp
         ) : null}
 
         {sales.length > 0 ? (
-          <div className="mt-5 overflow-hidden rounded-2xl border border-stone-200">
-            <div className="grid grid-cols-[minmax(0,1fr)_120px_140px] gap-4 bg-stone-100 px-4 py-3 text-xs font-bold uppercase tracking-[0.14em] text-stone-600 max-md:hidden">
+          <div className="mt-4 overflow-hidden rounded-lg border border-stone-200">
+            <div className="grid grid-cols-[minmax(0,1fr)_120px_140px] gap-4 bg-stone-100 px-3 py-2 text-xs font-medium text-stone-600 max-md:hidden">
               <span>Fecha</span>
               <span>Productos</span>
               <span className="text-right">Total</span>
@@ -125,7 +127,7 @@ export function SalesList({ sales, loadError, initialSaleDetail }: SalesListProp
                   key={sale.id}
                   type="button"
                   onClick={() => void handleSelectSale(sale.id)}
-                  className={`grid w-full gap-2 px-4 py-4 text-left transition hover:bg-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-stone-800 md:grid-cols-[minmax(0,1fr)_120px_140px] md:items-center ${
+                  className={`grid w-full gap-2 px-3 py-2.5 text-left transition hover:bg-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-stone-800 md:grid-cols-[minmax(0,1fr)_120px_140px] md:items-center ${
                     selectedSaleId === sale.id ? "bg-amber-50" : "bg-white"
                   }`}
                   aria-pressed={selectedSaleId === sale.id}
@@ -153,18 +155,16 @@ export function SalesList({ sales, loadError, initialSaleDetail }: SalesListProp
       </div>
 
       <aside
-        className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-stone-200"
+        className="rounded-lg border border-stone-200 bg-white p-4"
         aria-label="Detalle de venta"
       >
-        <p className="text-sm font-semibold uppercase tracking-[0.24em] text-amber-700">
-          Ventas
-        </p>
-        <h3 className="mt-3 text-2xl font-bold text-stone-950">
+        <p className="text-xs font-medium text-amber-700">Ventas</p>
+        <h3 className="mt-2 text-lg font-semibold text-stone-950">
           Detalle de venta
         </h3>
 
         {!selectedSale ? (
-          <div className="mt-5 rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-6 text-center">
+          <div className="mt-4 rounded-lg border border-dashed border-stone-300 bg-stone-50 p-4 text-center">
             <p className="text-sm font-semibold text-stone-700">
               Selecciona una venta para ver el detalle.
             </p>
@@ -172,13 +172,13 @@ export function SalesList({ sales, loadError, initialSaleDetail }: SalesListProp
         ) : null}
 
         {selectedSale && detailLoading ? (
-          <p className="mt-5 rounded-2xl bg-stone-50 px-4 py-3 text-sm font-semibold text-stone-700 ring-1 ring-stone-200">
+          <p className="mt-4 rounded-lg bg-stone-50 px-3 py-2 text-sm font-medium text-stone-700 ring-1 ring-stone-200">
             Cargando detalle…
           </p>
         ) : null}
 
         {selectedSale && detailError ? (
-          <p className="mt-5 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-900 ring-1 ring-red-200">
+          <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-900 ring-1 ring-red-200">
             {detailError}
           </p>
         ) : null}
@@ -186,31 +186,31 @@ export function SalesList({ sales, loadError, initialSaleDetail }: SalesListProp
         {selectedSale && resolvedDetail ? (
           <div className="mt-5 space-y-4">
             <dl className="grid gap-3 text-sm">
-              <div className="flex justify-between gap-4 rounded-xl bg-stone-50 p-3 ring-1 ring-stone-200">
+              <div className="flex justify-between gap-4 rounded-md bg-stone-50 p-3 ring-1 ring-stone-200">
                 <dt className="font-semibold text-stone-600">Fecha</dt>
                 <dd className="text-right font-semibold text-stone-950">
                   {formatDateTime(resolvedDetail.createdAt)}
                 </dd>
               </div>
-              <div className="flex justify-between gap-4 rounded-xl bg-stone-50 p-3 ring-1 ring-stone-200">
+              <div className="flex justify-between gap-4 rounded-md bg-stone-50 p-3 ring-1 ring-stone-200">
                 <dt className="font-semibold text-stone-600">Total</dt>
                 <dd className="text-right font-bold text-stone-950">
                   {formatCurrency(resolvedDetail.totalAmount)}
                 </dd>
               </div>
-              <div className="flex justify-between gap-4 rounded-xl bg-stone-50 p-3 ring-1 ring-stone-200">
+              <div className="flex justify-between gap-4 rounded-md bg-stone-50 p-3 ring-1 ring-stone-200">
                 <dt className="font-semibold text-stone-600">Método de pago</dt>
                 <dd className="text-right font-semibold text-stone-950">
                   {paymentMethodLabel(resolvedDetail.paymentMethod)}
                 </dd>
               </div>
-              <div className="flex justify-between gap-4 rounded-xl bg-stone-50 p-3 ring-1 ring-stone-200">
+              <div className="flex justify-between gap-4 rounded-md bg-stone-50 p-3 ring-1 ring-stone-200">
                 <dt className="font-semibold text-stone-600">Estado</dt>
                 <dd className="text-right font-semibold text-stone-950">
                   {statusLabel(resolvedDetail.status)}
                 </dd>
               </div>
-              <div className="flex justify-between gap-4 rounded-xl bg-stone-50 p-3 ring-1 ring-stone-200">
+              <div className="flex justify-between gap-4 rounded-md bg-stone-50 p-3 ring-1 ring-stone-200">
                 <dt className="font-semibold text-stone-600">Productos</dt>
                 <dd className="text-right font-semibold text-stone-950">
                   {resolvedDetail.itemCount} unidad{resolvedDetail.itemCount === 1 ? "" : "es"}
@@ -219,11 +219,9 @@ export function SalesList({ sales, loadError, initialSaleDetail }: SalesListProp
             </dl>
 
             <div>
-              <p className="text-sm font-bold uppercase tracking-[0.14em] text-stone-700">
-                Productos
-              </p>
-              <div className="mt-3 overflow-hidden rounded-2xl border border-stone-200">
-                <div className="grid grid-cols-[minmax(0,1fr)_90px_120px] gap-3 bg-stone-100 px-4 py-3 text-xs font-bold uppercase tracking-[0.14em] text-stone-600">
+              <p className="text-sm font-semibold text-stone-800">Productos</p>
+              <div className="mt-3 overflow-hidden rounded-lg border border-stone-200">
+                <div className="grid grid-cols-[minmax(0,1fr)_90px_120px] gap-3 bg-stone-100 px-3 py-2 text-xs font-medium text-stone-600">
                   <span>Productos</span>
                   <span>Cantidad</span>
                   <span className="text-right">Total</span>
@@ -232,7 +230,7 @@ export function SalesList({ sales, loadError, initialSaleDetail }: SalesListProp
                   {resolvedDetail.items.map((item) => (
                     <div
                       key={item.id}
-                      className="grid grid-cols-[minmax(0,1fr)_90px_120px] gap-3 px-4 py-4"
+                      className="grid grid-cols-[minmax(0,1fr)_90px_120px] gap-3 px-3 py-2.5"
                     >
                       <div className="min-w-0">
                         <p className="font-semibold text-stone-950">

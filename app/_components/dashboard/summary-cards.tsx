@@ -18,15 +18,17 @@ export function SummaryCards({ cards }: SummaryCardsProps) {
       {cards.map((card) => (
         <article
           key={card.label}
-          className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-stone-200"
+          className="rounded-lg border border-stone-200 bg-white p-4"
         >
           <div
-            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${card.tone}`}
+            className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ${card.tone}`}
           >
             {card.label}
           </div>
-          <p className="mt-5 text-4xl font-bold tracking-tight">{card.value}</p>
-          <p className="mt-2 text-sm text-stone-500">{card.detail}</p>
+          <p className="mt-4 text-2xl font-semibold tabular-nums tracking-tight">
+            {card.value}
+          </p>
+          <p className="mt-1 text-sm text-stone-600">{card.detail}</p>
         </article>
       ))}
     </section>

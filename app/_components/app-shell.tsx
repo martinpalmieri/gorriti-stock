@@ -12,9 +12,9 @@ export function AppShell({
 
   return (
     <div className="min-h-screen bg-stone-100 text-stone-950">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col lg:flex-row">
+      <div className="flex min-h-screen w-full flex-col lg:flex-row">
         <Sidebar pathname={pathname} userEmail={userEmail} />
-        <main className="flex-1 px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
+        <main className="flex-1 px-3 py-4 sm:px-4 lg:px-5 lg:py-5">
           {children}
         </main>
       </div>

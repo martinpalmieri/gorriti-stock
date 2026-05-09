@@ -1,10 +1,10 @@
 import Link from "next/link";
 
 const baseNavItemClasses =
-  "rounded-2xl px-4 py-3 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-700";
+  "rounded-md px-3 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-700";
 
 const activeNavItemClasses =
-  "bg-stone-900 text-white shadow-sm hover:bg-stone-800 hover:text-white active:bg-stone-950 active:text-white";
+  "bg-stone-900 text-white hover:bg-stone-800 hover:text-white active:bg-stone-950 active:text-white";
 
 const inactiveNavItemClasses =
   "text-stone-700 hover:bg-stone-100 hover:text-stone-950 active:bg-stone-200 active:text-stone-950";

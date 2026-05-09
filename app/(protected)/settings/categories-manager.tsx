@@ -9,6 +9,7 @@ import {
   type CategoryFormState,
 } from "./categories-actions";
 import { initialCategoryFormState } from "./categories-form-state";
+import { Button } from "../../_components/ui/button";
 
 type Category = { id: string; name: string; slug: string };
 
@@ -28,7 +29,10 @@ function StatusMessage({ state }: { state: CategoryFormState }) {
       : "bg-red-100 text-red-900";
 
   return (
-    <p className={`mt-4 rounded-2xl px-4 py-3 text-sm font-semibold ${classes}`} role="status">
+    <p
+      className={`mt-4 rounded-md px-3 py-2 text-sm font-medium ${classes}`}
+      role="status"
+    >
       {state.message}
     </p>
   );
@@ -81,12 +85,12 @@ function CategoryEditor({
   const editCategory = mode.type === "edit" ? mode.category : null;
 
   return (
-    <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
-      <p className="text-sm font-bold uppercase tracking-[0.18em] text-amber-800">
+    <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/60 p-4">
+      <p className="text-xs font-medium text-amber-800">
         {mode.type === "create" ? "Nueva categoría" : "Editar categoría"}
       </p>
 
-      <h4 className="mt-2 text-2xl font-bold text-stone-950">
+      <h4 className="mt-2 text-xl font-semibold text-stone-950">
         {mode.type === "create"
           ? "Nueva categoría"
           : editCategory?.name ?? "Editar"}
@@ -115,9 +119,9 @@ function CategoryEditor({
           <FieldError error={state.fieldErrors?.name} />
         </label>
 
-        <div className="rounded-2xl border border-stone-200 bg-white p-4">
+        <div className="rounded-lg border border-stone-200 bg-white p-3">
           <p className="text-sm font-semibold text-stone-800">Slug</p>
-          <p className="mt-2 rounded-xl bg-stone-50 px-3 py-2 font-mono text-sm text-stone-800 ring-1 ring-stone-200">
+          <p className="mt-2 rounded-md bg-stone-50 px-3 py-2 font-mono text-sm text-stone-800 ring-1 ring-stone-200">
             {slugPreview || "—"}
           </p>
           <p className="mt-2 text-xs font-medium text-stone-600">
@@ -127,23 +131,21 @@ function CategoryEditor({
         </div>
 
         <div className="flex flex-col gap-3 sm:col-span-2 sm:flex-row sm:justify-end">
-          <button
+          <Button
             type="button"
             onClick={() => {
               setNameValue("");
               onDone();
             }}
-            className="rounded-2xl bg-stone-100 px-5 py-3 text-sm font-semibold text-stone-900 hover:bg-stone-200"
           >
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             disabled={!actionsEnabled || pending}
-            className="rounded-2xl bg-stone-900 px-5 py-3 text-sm font-semibold text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
           >
             {pending ? "Guardando…" : "Guardar categoría"}
-          </button>
+          </Button>
         </div>
       </form>
     </div>
@@ -164,17 +166,17 @@ export function CategoriesManager({
   const [formSession, setFormSession] = useState(0);
 
   return (
-    <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-stone-200">
+    <section className="rounded-lg border border-stone-200 bg-white p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 className="text-xl font-bold">Categorías</h3>
-          <p className="mt-2 max-w-2xl text-sm text-stone-600">
+          <h3 className="text-lg font-semibold">Categorías</h3>
+          <p className="mt-1 max-w-2xl text-sm text-stone-600">
             Crea y edita las categorías del inventario.
           </p>
         </div>
 
         {mode.type === "list" ? (
-          <button
+          <Button
             type="button"
             onClick={() => {
               setNameValue("");
@@ -182,40 +184,39 @@ export function CategoriesManager({
               setMode({ type: "create" });
             }}
             disabled={!actionsEnabled}
-            className="inline-flex items-center justify-center rounded-2xl bg-stone-900 px-4 py-3 text-sm font-semibold text-white hover:bg-stone-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-900 disabled:cursor-not-allowed disabled:bg-stone-400"
           >
             Añadir categoría
-          </button>
+          </Button>
         ) : (
-          <button
+          <Button
             type="button"
+            variant="secondary"
             onClick={() => {
               setNameValue("");
               setFormSession((value) => value + 1);
               setMode({ type: "list" });
             }}
-            className="inline-flex items-center justify-center rounded-2xl bg-stone-100 px-4 py-3 text-sm font-semibold text-stone-900 hover:bg-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-900"
           >
             Volver
-          </button>
+          </Button>
         )}
       </div>
 
       {loadError ? (
-        <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-900">
+        <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-900">
           No se pudo cargar Supabase: {loadError}
         </p>
       ) : null}
 
       {!actionsEnabled ? (
-        <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+        <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
           Las categorías se muestran en modo lectura porque faltan variables de entorno de Supabase.
         </p>
       ) : null}
 
       {mode.type === "list" ? (
-        <div className="mt-5 overflow-hidden rounded-2xl border border-stone-200">
-          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_160px] gap-4 bg-stone-100 px-4 py-3 text-xs font-bold uppercase tracking-[0.14em] text-stone-600 max-md:hidden">
+        <div className="mt-4 overflow-hidden rounded-lg border border-stone-200">
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_160px] gap-4 bg-stone-100 px-3 py-2 text-xs font-medium text-stone-600 max-md:hidden">
             <span>Nombre</span>
             <span>Slug</span>
             <span className="text-right">Acciones</span>
@@ -234,7 +235,7 @@ export function CategoriesManager({
               categories.map((category) => (
                 <div
                   key={category.id}
-                  className="grid items-start gap-3 px-4 py-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_160px] md:items-center"
+                  className="grid items-start gap-3 px-3 py-2.5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_160px] md:items-center"
                 >
                   <div className="min-w-0">
                     <p className="font-semibold text-stone-950">{category.name}</p>
@@ -246,18 +247,18 @@ export function CategoriesManager({
                     {category.slug}
                   </p>
                   <div className="flex justify-end">
-                    <button
+                    <Button
                       type="button"
+                      variant="secondary"
                       onClick={() => {
                         setNameValue(category.name);
                         setFormSession((value) => value + 1);
                         setMode({ type: "edit", category });
                       }}
                       disabled={!actionsEnabled}
-                      className="rounded-2xl bg-stone-100 px-4 py-2 text-sm font-semibold text-stone-900 hover:bg-stone-200 disabled:cursor-not-allowed disabled:bg-stone-50 disabled:text-stone-400"
                     >
                       Editar
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ))

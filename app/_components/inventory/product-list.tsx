@@ -22,6 +22,7 @@ import {
 } from "@/app/(protected)/inventory/actions";
 import { initialProductFormState } from "@/app/(protected)/inventory/product-form-state";
 import { Button } from "../ui/button";
+import { PageHeader } from "../ui/page-header";
 
 const conditionLabels: Record<ProductConditionValue, string> = {
   new: "Nuevo",
@@ -149,13 +150,13 @@ function ProductForm({
   }, [router, state.status]);
 
   return (
-    <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
+    <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-sm font-bold uppercase tracking-[0.18em] text-amber-800">
+          <p className="text-xs font-medium text-amber-800">
             {isEditing ? "Editar producto" : "Añadir producto"}
           </p>
-          <h3 className="mt-2 text-2xl font-bold text-stone-950">
+          <h3 className="mt-2 text-xl font-semibold text-stone-950">
             {product ? product.name : "Nueva ficha de producto"}
           </h3>
           <p className="mt-1 text-sm text-stone-700">
@@ -167,7 +168,6 @@ function ProductForm({
         <Button
           type="button"
           variant="secondary"
-          className="px-4 py-2"
           onClick={onClose}
         >
           Cerrar
@@ -176,7 +176,7 @@ function ProductForm({
 
       {state.message ? (
         <p
-          className={`mt-4 rounded-2xl px-4 py-3 text-sm font-semibold ${
+          className={`mt-4 rounded-md px-3 py-2 text-sm font-medium ${
             state.status === "success"
               ? "bg-emerald-100 text-emerald-900"
               : "bg-red-100 text-red-900"
@@ -229,17 +229,16 @@ function ProductForm({
         </Field>
 
         {isEditing ? (
-          <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+          <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
             <p className="text-sm font-semibold text-stone-800">Stock actual</p>
             <div className="mt-2 flex items-center justify-between gap-3">
-              <p className="text-2xl font-bold tabular-nums text-stone-950">
+              <p className="text-xl font-semibold tabular-nums text-stone-950">
                 {product?.currentStock ?? 0}
               </p>
               {product ? (
                 <Button
                   type="button"
                   variant="secondary"
-                  className="px-3 py-2 text-sm"
                   onClick={() => onOpenStockCorrection(product)}
                 >
                   Corregir stock
@@ -346,12 +345,11 @@ function ProductForm({
           <Button
             type="button"
             variant="secondary"
-            className="px-5 py-3"
             onClick={onClose}
           >
             Cancelar
           </Button>
-          <Button type="submit" className="px-5 py-3" disabled={pending}>
+          <Button type="submit" disabled={pending}>
             {pending ? "Guardando…" : "Guardar producto"}
           </Button>
         </div>
@@ -463,20 +461,19 @@ function StockCorrectionModal({
       aria-modal="true"
       aria-label="Corregir stock"
     >
-      <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl ring-1 ring-stone-200">
+      <div className="w-full max-w-lg rounded-lg bg-white p-4 shadow-lg ring-1 ring-stone-200">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.18em] text-amber-700">
+            <p className="text-xs font-medium text-amber-700">
               Corrección de stock
             </p>
-            <h3 className="mt-2 text-2xl font-bold text-stone-950">
+            <h3 className="mt-2 text-xl font-semibold text-stone-950">
               {product.name}
             </h3>
           </div>
           <Button
             type="button"
             variant="secondary"
-            className="px-4 py-2"
             onClick={onClose}
           >
             Cerrar
@@ -485,7 +482,7 @@ function StockCorrectionModal({
 
         {state.message ? (
           <p
-            className={`mt-4 rounded-2xl px-4 py-3 text-sm font-semibold ${
+            className={`mt-4 rounded-md px-3 py-2 text-sm font-medium ${
               state.status === "success"
                 ? "bg-emerald-100 text-emerald-900"
                 : "bg-red-100 text-red-900"
@@ -500,27 +497,27 @@ function StockCorrectionModal({
           <input type="hidden" name="productId" value={product.id} />
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl bg-stone-50 p-4 ring-1 ring-stone-200">
+            <div className="rounded-lg bg-stone-50 p-3 ring-1 ring-stone-200">
               <p className="text-sm font-semibold text-stone-700">
                 Stock actual
               </p>
-              <p className="mt-2 text-2xl font-bold tabular-nums text-stone-950">
+              <p className="mt-2 text-xl font-semibold tabular-nums text-stone-950">
                 {currentStock}
               </p>
             </div>
-            <div className="rounded-2xl bg-stone-50 p-4 ring-1 ring-stone-200">
+            <div className="rounded-lg bg-stone-50 p-3 ring-1 ring-stone-200">
               <p className="text-sm font-semibold text-stone-700">Ajuste</p>
-              <p className="mt-2 text-2xl font-bold tabular-nums text-stone-950">
+              <p className="mt-2 text-xl font-semibold tabular-nums text-stone-950">
                 {adjustment === null
                   ? "—"
                   : formatMovementQuantity(adjustment)}
               </p>
             </div>
-            <div className="rounded-2xl bg-stone-50 p-4 ring-1 ring-stone-200">
+            <div className="rounded-lg bg-stone-50 p-3 ring-1 ring-stone-200">
               <p className="text-sm font-semibold text-stone-700">
                 Stock resultante
               </p>
-              <p className="mt-2 text-2xl font-bold tabular-nums text-stone-950">
+              <p className="mt-2 text-xl font-semibold tabular-nums text-stone-950">
                 {resultingStock}
               </p>
             </div>
@@ -578,9 +575,7 @@ export function ProductList({
   const [stockFilter, setStockFilter] =
     useState<(typeof stockFilters)[number]["value"]>("all");
   const [formMode, setFormMode] = useState<FormMode>({ type: "closed" });
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(() =>
-    products[0]?.id ? products[0].id : null,
-  );
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [stockCorrectionProductId, setStockCorrectionProductId] = useState<
     string | null
   >(null);
@@ -602,13 +597,10 @@ export function ProductList({
     });
   }, [products, stockOverrides]);
 
-  const effectiveSelectedProductId =
-    selectedProductId ?? clientProducts[0]?.id ?? null;
-
   const selectedProduct =
-    clientProducts.find((product) => product.id === effectiveSelectedProductId) ??
-    clientProducts[0] ??
-    null;
+    selectedProductId === null
+      ? null
+      : clientProducts.find((product) => product.id === selectedProductId) ?? null;
 
   const stockCorrectionProduct =
     stockCorrectionProductId === null
@@ -664,29 +656,24 @@ export function ProductList({
   }, [category, condition, clientProducts, search, stockFilter]);
 
   return (
-    <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-stone-200 sm:p-6">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-stone-950 sm:text-4xl">
-            Productos
-          </h2>
-          <p className="mt-1 text-sm text-stone-600">
-            Busca por nombre, creador, editorial, sello, código de barras, SKU,
-            ISBN o notas.
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="secondary"
-          className="w-full px-4 py-2 text-stone-800 sm:w-auto"
-          onClick={() => setFormMode({ type: "create" })}
-        >
-          Añadir producto
-        </Button>
-      </div>
+    <section className="space-y-4">
+      <PageHeader
+        title="Inventario"
+        description="Busca por nombre, creador, editorial, sello, código de barras, SKU, ISBN o notas."
+        actions={
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full sm:w-auto"
+            onClick={() => setFormMode({ type: "create" })}
+          >
+            Añadir producto
+          </Button>
+        }
+      />
 
       {loadError ? (
-        <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-900">
+        <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-900">
           No se pudo cargar Supabase: {loadError}
         </p>
       ) : null}
@@ -724,7 +711,7 @@ export function ProductList({
         }}
       />
 
-      <div className="mt-5 rounded-2xl border border-stone-200 bg-stone-50 p-4 shadow-sm">
+      <div className="mt-4 rounded-lg border border-stone-200 bg-stone-50 p-3">
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_190px_170px]">
         <label className="block">
           <span className="text-sm font-semibold text-stone-800">
@@ -734,7 +721,7 @@ export function ProductList({
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Ej. Borges, Factory, SKU o ISBN"
-            className="field-control mt-2"
+            className="field-control mt-2 text-sm"
             type="search"
           />
         </label>
@@ -746,7 +733,7 @@ export function ProductList({
           <select
             value={category}
             onChange={(event) => setCategory(event.target.value)}
-            className="field-control mt-2"
+            className="field-control mt-2 text-sm"
           >
             <option value="Todas">Todas</option>
             {categories.map((item) => (
@@ -766,7 +753,7 @@ export function ProductList({
                 event.target.value as ProductConditionValue | "Todas",
               )
             }
-            className="field-control mt-2"
+            className="field-control mt-2 text-sm"
           >
             <option value="Todas">Todas</option>
             {conditionOptions.map((item) => (
@@ -788,7 +775,7 @@ export function ProductList({
                 event.target.value as (typeof stockFilters)[number]["value"],
               )
             }
-            className="field-control mt-2"
+            className="field-control mt-2 text-sm"
           >
             {stockFilters.map((item) => (
               <option key={item.value} value={item.value}>
@@ -800,9 +787,15 @@ export function ProductList({
         </div>
       </div>
 
-      <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="overflow-hidden rounded-2xl border border-stone-200">
-          <div className="grid grid-cols-[minmax(0,1.4fr)_0.9fr_0.8fr_0.7fr] gap-4 bg-stone-100 px-4 py-3 text-xs font-bold uppercase tracking-[0.14em] text-stone-600 max-md:hidden">
+      <div
+        className={
+          selectedProduct
+            ? "mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"
+            : "mt-5"
+        }
+      >
+        <div className="overflow-hidden rounded-lg border border-stone-200">
+          <div className="grid grid-cols-[minmax(0,1.4fr)_0.9fr_0.8fr_0.7fr] gap-4 bg-stone-100 px-3 py-2 text-xs font-medium text-stone-600 max-md:hidden">
             <span>Producto</span>
             <span>Categoría</span>
             <span>Stock actual</span>
@@ -816,7 +809,7 @@ export function ProductList({
                   key={product.id}
                   type="button"
                   onClick={() => handleSelectProductId(product.id)}
-                  className={`grid w-full gap-3 px-4 py-4 text-left transition hover:bg-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-stone-800 md:grid-cols-[minmax(0,1.4fr)_0.9fr_0.8fr_0.7fr] md:items-center ${
+                  className={`grid w-full gap-3 px-3 py-2 text-left transition hover:bg-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-stone-800 md:grid-cols-[minmax(0,1.4fr)_0.9fr_0.8fr_0.7fr] md:items-center ${
                     selectedProduct?.id === product.id
                       ? "bg-amber-50"
                       : "bg-white"
@@ -847,7 +840,7 @@ export function ProductList({
                   </div>
                   <div>
                     <span
-                      className={`inline-flex rounded-full border px-3 py-1 text-sm font-bold ${stockBadgeClasses(product.currentStock)}`}
+                      className={`inline-flex rounded-md border px-2 py-0.5 text-sm font-semibold ${stockBadgeClasses(product.currentStock)}`}
                     >
                       {product.currentStock > 0
                         ? `${product.currentStock} en stock`
@@ -876,7 +869,7 @@ export function ProductList({
                 <Button
                   type="button"
                   variant="secondary"
-                  className="mt-5 px-4 py-2"
+                  className="mt-4"
                   onClick={() => setFormMode({ type: "create" })}
                 >
                   Añadir producto
@@ -885,7 +878,7 @@ export function ProductList({
                 <Button
                   type="button"
                   variant="secondary"
-                  className="mt-5 px-4 py-2"
+                  className="mt-4"
                   onClick={() => {
                     setSearch("");
                     setCategory("Todas");
@@ -900,166 +893,147 @@ export function ProductList({
           )}
         </div>
 
-        <aside
-          className="rounded-2xl border border-stone-200 bg-stone-50 p-5"
-          aria-label="Detalle del producto"
-        >
-          {selectedProduct ? (
-            <>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-bold uppercase tracking-[0.18em] text-amber-700">
-                    Detalle
-                  </p>
-                  <h4 className="mt-3 text-2xl font-bold text-stone-950">
-                    {selectedProduct.name}
-                  </h4>
-                  <p className="mt-1 text-stone-700">
-                    {selectedProduct.creatorOrAuthor || "Sin creador"}
-                  </p>
-                </div>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="px-3 py-2 text-sm"
-                    onClick={() => openStockCorrection(selectedProduct)}
-                  >
-                    Corregir stock
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="px-3 py-2 text-sm"
-                    onClick={() =>
-                      setFormMode({ type: "edit", product: selectedProduct })
-                    }
-                  >
-                    Editar producto
-                  </Button>
-                </div>
+        {selectedProduct ? (
+          <aside
+            className="rounded-lg border border-stone-200 bg-stone-50 p-4"
+            aria-label="Detalle del producto"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h4 className="mt-2 text-lg font-semibold text-stone-950">
+                  {selectedProduct.name}
+                </h4>
+                <p className="mt-1 text-stone-700">
+                  {selectedProduct.creatorOrAuthor || "Sin creador"}
+                </p>
               </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="whitespace-nowrap text-xs"
+                  onClick={() => openStockCorrection(selectedProduct)}
+                >
+                  Corregir stock
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="whitespace-nowrap text-xs"
+                  onClick={() =>
+                    setFormMode({ type: "edit", product: selectedProduct })
+                  }
+                >
+                  Editar producto
+                </Button>
+              </div>
+            </div>
 
-              <dl className="mt-5 grid gap-3 text-sm">
-                <DetailRow
-                  label="Categoría"
-                  value={selectedProduct.categoryName}
-                />
-                <DetailRow
-                  label="Editorial / marca / sello"
-                  value={
-                    selectedProduct.brandPublisherLabel || "Sin especificar"
-                  }
-                />
-                <DetailRow
-                  label="Estado"
-                  value={
-                    selectedProduct.condition
-                      ? conditionLabels[selectedProduct.condition]
-                      : "Sin especificar"
-                  }
-                />
-                <DetailRow
-                  label="Precio"
-                  value={formatCurrency(selectedProduct.price)}
-                  strong
-                />
-                <DetailRow
-                  label="Coste"
-                  value={
-                    selectedProduct.costPrice === null
-                      ? "Sin especificar"
-                      : formatCurrency(selectedProduct.costPrice)
-                  }
-                />
-                <DetailRow
-                  label="Stock actual"
-                  value={`${selectedProduct.currentStock} unidades`}
-                />
-                <DetailRow
-                  label="Proveedor"
-                  value={selectedProduct.supplier || "Sin especificar"}
-                />
-                <div className="rounded-xl bg-white p-3 ring-1 ring-stone-200">
-                  <dt className="font-semibold text-stone-600">
-                    Movimientos de stock
-                  </dt>
-                  <dd className="mt-3 space-y-2 text-stone-950">
-                    {movementsError ? (
-                      <p className="text-sm font-semibold text-red-800">
-                        {movementsError}
-                      </p>
-                    ) : movements.length === 0 ? (
-                      <p className="text-sm text-stone-600">
-                        Sin movimientos para este producto.
-                      </p>
-                    ) : (
-                      <ul className="space-y-2">
-                        {movements.map((movement) => (
-                          <li
-                            key={movement.id}
-                            className="rounded-xl bg-stone-50 p-3 ring-1 ring-stone-200"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-bold text-stone-900">
-                                  {formatMovementType(movement.type)}
-                                </p>
-                                <p className="mt-1 text-sm text-stone-700">
-                                  {movement.reason || "Sin motivo"}
-                                </p>
-                              </div>
-                              <p className="text-sm font-bold tabular-nums text-stone-950">
-                                {formatMovementQuantity(movement.quantityChange)}
+            <dl className="mt-4 grid gap-2 text-sm">
+              <DetailRow
+                label="Categoría"
+                value={selectedProduct.categoryName}
+              />
+              <DetailRow
+                label="Editorial / marca / sello"
+                value={selectedProduct.brandPublisherLabel || "Sin especificar"}
+              />
+              <DetailRow
+                label="Estado"
+                value={
+                  selectedProduct.condition
+                    ? conditionLabels[selectedProduct.condition]
+                    : "Sin especificar"
+                }
+              />
+              <DetailRow
+                label="Precio"
+                value={formatCurrency(selectedProduct.price)}
+                strong
+              />
+              <DetailRow
+                label="Coste"
+                value={
+                  selectedProduct.costPrice === null
+                    ? "Sin especificar"
+                    : formatCurrency(selectedProduct.costPrice)
+                }
+              />
+              <DetailRow
+                label="Stock actual"
+                value={`${selectedProduct.currentStock} unidades`}
+              />
+              <DetailRow
+                label="Proveedor"
+                value={selectedProduct.supplier || "Sin especificar"}
+              />
+              <div className="rounded-md bg-white p-3 ring-1 ring-stone-200">
+                <dt className="font-semibold text-stone-600">
+                  Movimientos de stock
+                </dt>
+                <dd className="mt-3 space-y-2 text-stone-950">
+                  {movementsError ? (
+                    <p className="text-sm font-semibold text-red-800">
+                      {movementsError}
+                    </p>
+                  ) : movements.length === 0 ? (
+                    <p className="text-sm text-stone-600">
+                      Sin movimientos para este producto.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {movements.map((movement) => (
+                        <li
+                          key={movement.id}
+                          className="rounded-md bg-stone-50 p-3 ring-1 ring-stone-200"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-bold text-stone-900">
+                                {formatMovementType(movement.type)}
+                              </p>
+                              <p className="mt-1 text-sm text-stone-700">
+                                {movement.reason || "Sin motivo"}
                               </p>
                             </div>
-                            <p className="mt-2 text-xs font-medium text-stone-600">
-                              {movement.stockBefore} → {movement.stockAfter}
-                              {movement.createdAt
-                                ? ` · ${new Date(movement.createdAt).toLocaleString(
-                                    "es-ES",
-                                  )}`
-                                : ""}
+                            <p className="text-sm font-bold tabular-nums text-stone-950">
+                              {formatMovementQuantity(movement.quantityChange)}
                             </p>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </dd>
-                </div>
-                <div className="rounded-xl bg-white p-3 ring-1 ring-stone-200">
-                  <dt className="font-semibold text-stone-600">Códigos</dt>
-                  <dd className="mt-2 space-y-1 text-stone-950">
-                    <p>SKU: {selectedProduct.sku || "Sin SKU"}</p>
-                    <p>
-                      Código de barras:{" "}
-                      {selectedProduct.barcode || "Sin código"}
-                    </p>
-                    <p>ISBN: {selectedProduct.isbn || "Sin ISBN"}</p>
-                  </dd>
-                </div>
-                <div className="rounded-xl bg-white p-3 ring-1 ring-stone-200">
-                  <dt className="font-semibold text-stone-600">Notas</dt>
-                  <dd className="mt-2 text-stone-950">
-                    {selectedProduct.notes || "Sin notas"}
-                  </dd>
-                </div>
-              </dl>
-            </>
-          ) : (
-            <div className="py-10 text-center">
-              <p className="text-sm font-bold uppercase tracking-[0.18em] text-amber-700">
-                Detalle
-              </p>
-              <p className="mt-3 text-lg font-bold text-stone-950">
-                Selecciona un producto
-              </p>
-              <p className="mt-2 text-sm text-stone-600">
-                Cuando haya productos cargados, aquí verás sus datos reales.
-              </p>
-            </div>
-          )}
-        </aside>
+                          </div>
+                          <p className="mt-2 text-xs font-medium text-stone-600">
+                            {movement.stockBefore} → {movement.stockAfter}
+                            {movement.createdAt
+                              ? ` · ${new Date(movement.createdAt).toLocaleString(
+                                  "es-ES",
+                                )}`
+                              : ""}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </dd>
+              </div>
+              <div className="rounded-md bg-white p-3 ring-1 ring-stone-200">
+                <dt className="font-semibold text-stone-600">Códigos</dt>
+                <dd className="mt-2 space-y-1 text-stone-950">
+                  <p>SKU: {selectedProduct.sku || "Sin SKU"}</p>
+                  <p>
+                    Código de barras:{" "}
+                    {selectedProduct.barcode || "Sin código"}
+                  </p>
+                  <p>ISBN: {selectedProduct.isbn || "Sin ISBN"}</p>
+                </dd>
+              </div>
+              <div className="rounded-md bg-white p-3 ring-1 ring-stone-200">
+                <dt className="font-semibold text-stone-600">Notas</dt>
+                <dd className="mt-2 text-stone-950">
+                  {selectedProduct.notes || "Sin notas"}
+                </dd>
+              </div>
+            </dl>
+          </aside>
+        ) : null}
       </div>
     </section>
   );
@@ -1075,7 +1049,7 @@ function DetailRow({
   strong?: boolean;
 }) {
   return (
-    <div className="flex justify-between gap-4 rounded-xl bg-white p-3 ring-1 ring-stone-200">
+    <div className="flex justify-between gap-4 rounded-md bg-white px-3 py-2 ring-1 ring-stone-200">
       <dt className="font-semibold text-stone-600">{label}</dt>
       <dd className={`text-right text-stone-950 ${strong ? "font-bold" : ""}`}>
         {value}
