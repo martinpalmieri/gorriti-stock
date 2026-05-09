@@ -1,13 +1,23 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
-import type { Category, Product, ProductConditionValue } from "@/lib/inventory/types";
+import type {
+  Category,
+  Product,
+  ProductConditionValue,
+} from "@/lib/inventory/types";
 import {
   createProduct,
-  initialProductFormState,
   updateProduct,
 } from "@/app/(protected)/inventory/actions";
+import { initialProductFormState } from "@/app/(protected)/inventory/product-form-state";
 import { Button } from "../ui/button";
 
 const conditionLabels: Record<ProductConditionValue, string> = {
@@ -16,11 +26,12 @@ const conditionLabels: Record<ProductConditionValue, string> = {
   used_good: "Segunda mano",
 };
 
-const conditionOptions: Array<{ value: ProductConditionValue; label: string }> = [
-  { value: "new", label: "Nuevo" },
-  { value: "used_very_good", label: "Como nuevo" },
-  { value: "used_good", label: "Segunda mano" },
-];
+const conditionOptions: Array<{ value: ProductConditionValue; label: string }> =
+  [
+    { value: "new", label: "Nuevo" },
+    { value: "used_very_good", label: "Como nuevo" },
+    { value: "used_good", label: "Segunda mano" },
+  ];
 
 const stockFilters = [
   { label: "Todo el stock", value: "all" },
@@ -96,11 +107,12 @@ function ProductForm({
   const router = useRouter();
   const isEditing = mode.type === "edit";
   const product = mode.type === "edit" ? mode.product : null;
-  const action = product ? updateProduct.bind(null, product.id) : createProduct;
+  const action = isEditing ? updateProduct : createProduct;
   const [state, formAction, pending] = useActionState(
     action,
     initialProductFormState,
   );
+  const fieldErrors = state.fieldErrors ?? {};
 
   useEffect(() => {
     if (state.status === "success") {
@@ -124,7 +136,12 @@ function ProductForm({
               : "El stock inicial creará el primer movimiento de inventario."}
           </p>
         </div>
-        <Button type="button" variant="secondary" className="px-4 py-2" onClick={onClose}>
+        <Button
+          type="button"
+          variant="secondary"
+          className="px-4 py-2"
+          onClick={onClose}
+        >
           Cerrar
         </Button>
       </div>
@@ -143,7 +160,10 @@ function ProductForm({
       ) : null}
 
       <form action={formAction} className="mt-5 grid gap-4 lg:grid-cols-2">
-        <Field label="Nombre" error={state.fieldErrors.name} required>
+        {product ? (
+          <input type="hidden" name="productId" value={product.id} />
+        ) : null}
+        <Field label="Nombre" error={fieldErrors.name} required>
           <input
             name="name"
             defaultValue={product?.name ?? ""}
@@ -152,7 +172,7 @@ function ProductForm({
           />
         </Field>
 
-        <Field label="Categoría" error={state.fieldErrors.categoryId} required>
+        <Field label="Categoría" error={fieldErrors.categoryId} required>
           <select
             name="categoryId"
             defaultValue={product?.categoryId ?? ""}
@@ -168,7 +188,7 @@ function ProductForm({
           </select>
         </Field>
 
-        <Field label="Precio" error={state.fieldErrors.price} required>
+        <Field label="Precio" error={fieldErrors.price} required>
           <input
             name="price"
             type="number"
@@ -190,7 +210,11 @@ function ProductForm({
             />
           </Field>
         ) : (
-          <Field label="Stock inicial" error={state.fieldErrors.initialStock} required>
+          <Field
+            label="Stock inicial"
+            error={fieldErrors.initialStock}
+            required
+          >
             <input
               name="initialStock"
               type="number"
@@ -217,7 +241,7 @@ function ProductForm({
             className="field-control"
           />
         </Field>
-        <Field label="Coste" error={state.fieldErrors.costPrice}>
+        <Field label="Coste" error={fieldErrors.costPrice}>
           <input
             name="costPrice"
             type="number"
@@ -227,7 +251,7 @@ function ProductForm({
             className="field-control"
           />
         </Field>
-        <Field label="Estado" error={state.fieldErrors.condition}>
+        <Field label="Estado" error={fieldErrors.condition}>
           <select
             name="condition"
             defaultValue={product?.condition ?? ""}
@@ -256,7 +280,11 @@ function ProductForm({
           />
         </Field>
         <Field label="SKU">
-          <input name="sku" defaultValue={product?.sku ?? ""} className="field-control" />
+          <input
+            name="sku"
+            defaultValue={product?.sku ?? ""}
+            className="field-control"
+          />
         </Field>
         <Field label="ISBN">
           <input
@@ -274,7 +302,12 @@ function ProductForm({
         </Field>
 
         <div className="flex flex-col gap-3 lg:col-span-2 sm:flex-row sm:justify-end">
-          <Button type="button" variant="secondary" className="px-5 py-3" onClick={onClose}>
+          <Button
+            type="button"
+            variant="secondary"
+            className="px-5 py-3"
+            onClick={onClose}
+          >
             Cancelar
           </Button>
           <Button type="submit" className="px-5 py-3" disabled={pending}>
@@ -306,27 +339,41 @@ function Field({
         {required ? <span className="text-red-700"> *</span> : null}
       </span>
       <div className="mt-2">{children}</div>
-      {error ? <p className="mt-1 text-sm font-semibold text-red-800">{error}</p> : null}
+      {error ? (
+        <p className="mt-1 text-sm font-semibold text-red-800">{error}</p>
+      ) : null}
     </label>
   );
 }
 
-export function ProductList({ categories, products, loadError }: ProductListProps) {
+export function ProductList({
+  categories,
+  products,
+  loadError,
+}: ProductListProps) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Todas");
-  const [condition, setCondition] = useState<ProductConditionValue | "Todas">("Todas");
+  const [condition, setCondition] = useState<ProductConditionValue | "Todas">(
+    "Todas",
+  );
   const [stockFilter, setStockFilter] =
     useState<(typeof stockFilters)[number]["value"]>("all");
   const [formMode, setFormMode] = useState<FormMode>({ type: "closed" });
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(
+    null,
+  );
 
   const selectedProduct =
-    products.find((product) => product.id === selectedProductId) ?? products[0] ?? null;
+    products.find((product) => product.id === selectedProductId) ??
+    products[0] ??
+    null;
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
-      const matchesCategory = category === "Todas" || product.categoryId === category;
-      const matchesCondition = condition === "Todas" || product.condition === condition;
+      const matchesCategory =
+        category === "Todas" || product.categoryId === category;
+      const matchesCondition =
+        condition === "Todas" || product.condition === condition;
       const matchesStock =
         stockFilter === "all" ||
         (stockFilter === "in" && product.currentStock > 0) ||
@@ -345,7 +392,7 @@ export function ProductList({ categories, products, loadError }: ProductListProp
     <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-stone-200 sm:p-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h3 className="text-xl font-bold text-stone-950">Inventario real</h3>
+          <h3 className="text-xl font-bold text-stone-950">Inventario</h3>
           <p className="mt-1 text-sm text-stone-600">
             Busca por nombre, creador, editorial, sello, código de barras, SKU,
             ISBN o notas.
@@ -379,7 +426,9 @@ export function ProductList({ categories, products, loadError }: ProductListProp
 
       <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_190px_170px]">
         <label className="block">
-          <span className="text-sm font-semibold text-stone-800">Buscar producto</span>
+          <span className="text-sm font-semibold text-stone-800">
+            Buscar producto
+          </span>
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -390,7 +439,9 @@ export function ProductList({ categories, products, loadError }: ProductListProp
         </label>
 
         <label className="block">
-          <span className="text-sm font-semibold text-stone-800">Categoría</span>
+          <span className="text-sm font-semibold text-stone-800">
+            Categoría
+          </span>
           <select
             value={category}
             onChange={(event) => setCategory(event.target.value)}
@@ -410,7 +461,9 @@ export function ProductList({ categories, products, loadError }: ProductListProp
           <select
             value={condition}
             onChange={(event) =>
-              setCondition(event.target.value as ProductConditionValue | "Todas")
+              setCondition(
+                event.target.value as ProductConditionValue | "Todas",
+              )
             }
             className="field-control mt-2"
           >
@@ -424,7 +477,9 @@ export function ProductList({ categories, products, loadError }: ProductListProp
         </label>
 
         <label className="block">
-          <span className="text-sm font-semibold text-stone-800">Disponibilidad</span>
+          <span className="text-sm font-semibold text-stone-800">
+            Disponibilidad
+          </span>
           <select
             value={stockFilter}
             onChange={(event) =>
@@ -460,12 +515,16 @@ export function ProductList({ categories, products, loadError }: ProductListProp
                   type="button"
                   onClick={() => setSelectedProductId(product.id)}
                   className={`grid w-full gap-3 px-4 py-4 text-left transition hover:bg-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-stone-800 md:grid-cols-[minmax(0,1.4fr)_0.9fr_0.8fr_0.7fr] md:items-center ${
-                    selectedProduct?.id === product.id ? "bg-amber-50" : "bg-white"
+                    selectedProduct?.id === product.id
+                      ? "bg-amber-50"
+                      : "bg-white"
                   }`}
                   aria-pressed={selectedProduct?.id === product.id}
                 >
                   <div className="min-w-0">
-                    <p className="font-semibold text-stone-950">{product.name}</p>
+                    <p className="font-semibold text-stone-950">
+                      {product.name}
+                    </p>
                     <p className="mt-1 text-sm text-stone-600">
                       {[product.creatorOrAuthor, product.brandPublisherLabel]
                         .filter(Boolean)
@@ -561,17 +620,24 @@ export function ProductList({ categories, products, loadError }: ProductListProp
                   type="button"
                   variant="secondary"
                   className="px-3 py-2 text-sm"
-                  onClick={() => setFormMode({ type: "edit", product: selectedProduct })}
+                  onClick={() =>
+                    setFormMode({ type: "edit", product: selectedProduct })
+                  }
                 >
                   Editar producto
                 </Button>
               </div>
 
               <dl className="mt-5 grid gap-3 text-sm">
-                <DetailRow label="Categoría" value={selectedProduct.categoryName} />
+                <DetailRow
+                  label="Categoría"
+                  value={selectedProduct.categoryName}
+                />
                 <DetailRow
                   label="Editorial / marca / sello"
-                  value={selectedProduct.brandPublisherLabel || "Sin especificar"}
+                  value={
+                    selectedProduct.brandPublisherLabel || "Sin especificar"
+                  }
                 />
                 <DetailRow
                   label="Estado"
@@ -581,7 +647,11 @@ export function ProductList({ categories, products, loadError }: ProductListProp
                       : "Sin especificar"
                   }
                 />
-                <DetailRow label="Precio" value={formatCurrency(selectedProduct.price)} strong />
+                <DetailRow
+                  label="Precio"
+                  value={formatCurrency(selectedProduct.price)}
+                  strong
+                />
                 <DetailRow
                   label="Coste"
                   value={
@@ -602,7 +672,10 @@ export function ProductList({ categories, products, loadError }: ProductListProp
                   <dt className="font-semibold text-stone-600">Códigos</dt>
                   <dd className="mt-2 space-y-1 text-stone-950">
                     <p>SKU: {selectedProduct.sku || "Sin SKU"}</p>
-                    <p>Código de barras: {selectedProduct.barcode || "Sin código"}</p>
+                    <p>
+                      Código de barras:{" "}
+                      {selectedProduct.barcode || "Sin código"}
+                    </p>
                     <p>ISBN: {selectedProduct.isbn || "Sin ISBN"}</p>
                   </dd>
                 </div>

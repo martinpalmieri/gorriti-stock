@@ -13,18 +13,7 @@ import {
   type Product,
   type ProductConditionValue,
 } from "@/lib/inventory/types";
-
-export type ProductFormState = {
-  status: "idle" | "success" | "error";
-  message: string;
-  fieldErrors: Partial<Record<string, string>>;
-};
-
-export const initialProductFormState: ProductFormState = {
-  status: "idle",
-  message: "",
-  fieldErrors: {},
-};
+import type { ProductFormState } from "./product-form-state";
 
 type ProductFormValues = {
   name: string;
@@ -245,10 +234,20 @@ export async function createProduct(
 }
 
 export async function updateProduct(
-  productId: string,
   _previousState: ProductFormState,
   formData: FormData,
 ): Promise<ProductFormState> {
+  const productIdEntry = formData.get("productId");
+  const productId = typeof productIdEntry === "string" ? productIdEntry.trim() : "";
+
+  if (!productId) {
+    return {
+      status: "error",
+      message: "No se encontró el producto.",
+      fieldErrors: {},
+    };
+  }
+
   const parsed = parseProductForm(formData, "edit");
 
   if (!parsed.values) {
