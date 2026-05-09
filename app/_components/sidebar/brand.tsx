@@ -9,7 +9,7 @@ export function Brand() {
         width={96}
         height={96}
         priority
-        className="rounded-sm"
+        className="rounded-sm h-24 w-24"
       />
     </div>
   );
