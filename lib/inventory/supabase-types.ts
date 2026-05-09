@@ -6,6 +6,10 @@ type QueryBuilder<T> = {
   update: (values: unknown) => QueryBuilder<T>;
   delete: () => QueryBuilder<T>;
   eq: (column: string, value: unknown) => QueryBuilder<T>;
+  neq: (column: string, value: unknown) => QueryBuilder<T>;
+  ilike: (column: string, pattern: string) => QueryBuilder<T>;
+  or: (filters: string) => QueryBuilder<T>;
+  limit: (count: number) => QueryBuilder<T>;
   order: (column: string, options?: { ascending?: boolean }) => QueryBuilder<T>;
   single: () => QueryResult<T>;
   then: Promise<{ data: T[] | null; error: { message: string } | null }>["then"];

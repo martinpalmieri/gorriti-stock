@@ -1,4 +1,5 @@
 import { ExportCsvSection } from "./export-csv-section";
+import { CategoriesSection } from "./categories-section";
 
 export default function SettingsPage() {
   return (
@@ -13,6 +14,7 @@ export default function SettingsPage() {
         </p>
       </header>
 
+      <CategoriesSection />
       <ExportCsvSection />
     </div>
   );
