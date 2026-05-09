@@ -44,7 +44,6 @@ const routes = [
   },
 ];
 
-
 test.describe("Supabase Auth foundation", () => {
   test("redirects to login and captures the login page", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
@@ -67,7 +66,9 @@ test.describe("Supabase Auth foundation", () => {
     await loginForE2E(page);
 
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("button", { name: "Cerrar sesión" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Cerrar sesión" }),
+    ).toBeVisible();
 
     await page.screenshot({
       path: path.join(screenshotDir, "auth-dashboard.png"),
@@ -114,7 +115,7 @@ test.describe("Gorriti Stock app shell", () => {
   }
 });
 
-test.describe("Mocked inventory UI", () => {
+test.describe("Supabase-backed inventory UI", () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await loginForE2E(page);
@@ -124,95 +125,105 @@ test.describe("Mocked inventory UI", () => {
     ).toBeVisible();
   });
 
-  test("captures the default mocked inventory state", async ({ page }) => {
+  test("captures the empty real inventory state", async ({ page }) => {
     await expect(
-      page.getByRole("heading", { name: "Inventario simulado" }),
+      page.getByRole("heading", { name: "Inventario" }),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: /El Aleph/i })).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /Unknown Pleasures/i }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /Fanzine Gorriti 01/i }),
-    ).toBeVisible();
+    await expect(page.getByText("Todavía no hay productos")).toBeVisible();
 
     await page.screenshot({
-      path: path.join(screenshotDir, "inventory-default.png"),
+      path: path.join(screenshotDir, "inventory-real-empty.png"),
       fullPage: true,
     });
   });
 
-  test("filters products by search and captures the search state", async ({
+  test("creates, edits, filters, and captures real product states", async ({
     page,
   }) => {
-    await page.getByLabel("Buscar producto").fill("Factory");
-
+    await page.getByRole("button", { name: "Añadir producto" }).first().click();
     await expect(
-      page.getByRole("button", { name: /Unknown Pleasures/i }),
-    ).toBeVisible();
-    await expect(page.getByRole("button", { name: /El Aleph/i })).toHaveCount(
-      0,
-    );
-
-    await page.screenshot({
-      path: path.join(screenshotDir, "inventory-search.png"),
-      fullPage: true,
-    });
-  });
-
-  test("shows the empty state when no mocked products match", async ({
-    page,
-  }) => {
-    await page.getByLabel("Buscar producto").fill("zzzz sin coincidencias");
-
-    await expect(
-      page.getByText("No hay productos que coincidan"),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Limpiar filtros" }),
+      page.getByRole("heading", { name: "Nueva ficha de producto" }),
     ).toBeVisible();
 
     await page.screenshot({
-      path: path.join(screenshotDir, "inventory-empty.png"),
+      path: path.join(screenshotDir, "product-create-form.png"),
       fullPage: true,
     });
-  });
 
-  test("captures category, condition, and stock filters", async ({ page }) => {
-    await page.getByLabel("Categoría").selectOption("Libro");
-    await page.getByLabel("Estado").selectOption("Como nuevo");
-    await page.getByLabel("Disponibilidad").selectOption("out");
+    const createForm = page
+      .locator("form")
+      .filter({ hasText: "Guardar producto" });
+    await createForm.getByLabel("Nombre").fill("El Aleph Real");
+    await createForm.getByLabel("Categoría").selectOption("cat-libros");
+    await createForm.getByLabel("Precio").fill("12");
+    await createForm.getByLabel("Stock inicial").fill("2");
+    await createForm.getByLabel("Creador / autor").fill("Jorge Luis Borges");
+    await createForm
+      .getByLabel("Editorial / marca / sello")
+      .fill("Editorial Sur");
+    await createForm.getByLabel("Coste").fill("6");
+    await createForm.getByLabel("Estado").selectOption("used_good");
+    await createForm.getByLabel("Proveedor").fill("Distribuidora Centro");
+    await createForm.getByLabel("Código de barras").fill("9780000000011");
+    await createForm.getByLabel("SKU").fill("LIB-ALEPH-REAL");
+    await createForm.getByLabel("ISBN").fill("978-0-00-000001-1");
+    await createForm.getByLabel("Notas").fill("Alta real desde el formulario.");
+    await createForm.getByRole("button", { name: "Guardar producto" }).click();
 
+    await expect(page.getByText("Producto creado")).toBeVisible();
     await expect(
-      page.getByRole("button", { name: /Poeta en Nueva York/i }),
+      page.getByRole("button", { name: /El Aleph Real/i }),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: /El Aleph/i })).toHaveCount(
-      0,
-    );
-    await expect(page.getByText("Sin stock")).toBeVisible();
 
     await page.screenshot({
-      path: path.join(screenshotDir, "inventory-filtered.png"),
+      path: path.join(screenshotDir, "inventory-real-with-products.png"),
       fullPage: true,
     });
-  });
 
-  test("opens mocked product detail and captures the detail panel", async ({
-    page,
-  }) => {
-    await page.getByRole("button", { name: /Cassette Gorriti Demo/i }).click();
-
+    await page.getByRole("button", { name: /El Aleph Real/i }).click();
     await expect(page.getByLabel("Detalle del producto")).toContainText(
-      "Cassette Gorriti Demo",
+      "LIB-ALEPH-REAL",
     );
     await expect(page.getByLabel("Detalle del producto")).toContainText(
-      "MUS-CAS-DEMO-004",
+      "2 unidades",
     );
 
     await page.screenshot({
-      path: path.join(screenshotDir, "inventory-detail.png"),
+      path: path.join(screenshotDir, "product-detail-real.png"),
       fullPage: true,
     });
+
+    await page.getByRole("button", { name: "Editar producto" }).click();
+    await expect(
+      page.getByRole("heading", { name: "El Aleph Real" }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Stock actual")).toHaveValue("2");
+
+    await page.screenshot({
+      path: path.join(screenshotDir, "product-edit-form.png"),
+      fullPage: true,
+    });
+
+    const editForm = page.locator("form").filter({ hasText: "Stock actual" });
+    await editForm.getByLabel("Precio").fill("13.5");
+    await editForm
+      .getByLabel("Notas")
+      .fill("Producto actualizado desde edición.");
+    await editForm.getByRole("button", { name: "Guardar producto" }).click();
+    await expect(page.getByText("Producto actualizado")).toBeVisible();
+    await expect(page.getByLabel("Detalle del producto")).toContainText(
+      "13,50",
+    );
+
+    await page.getByLabel("Buscar producto").fill("Editorial Sur");
+    await expect(
+      page.getByRole("button", { name: /El Aleph Real/i }),
+    ).toBeVisible();
+    await page.getByLabel("Estado").first().selectOption("used_good");
+    await page.getByLabel("Disponibilidad").selectOption("in");
+    await expect(
+      page.getByRole("button", { name: /El Aleph Real/i }),
+    ).toBeVisible();
   });
 });
 
@@ -253,8 +264,12 @@ test.describe("Mocked nueva venta flow", () => {
     });
   });
 
-  test("adds multiple products and captures the cart total", async ({ page }) => {
-    await page.getByRole("button", { name: "Añadir Unknown Pleasures" }).click();
+  test("adds multiple products and captures the cart total", async ({
+    page,
+  }) => {
+    await page
+      .getByRole("button", { name: "Añadir Unknown Pleasures" })
+      .click();
     await page.getByRole("button", { name: "Añadir Cuaderno A5" }).click();
     await page
       .getByRole("button", { name: "Aumentar cantidad de Cuaderno A5" })
@@ -274,7 +289,9 @@ test.describe("Mocked nueva venta flow", () => {
     });
   });
 
-  test("captures stock limit controls for a one-stock product", async ({ page }) => {
+  test("captures stock limit controls for a one-stock product", async ({
+    page,
+  }) => {
     await page.getByLabel("Buscar producto para la venta").fill("El Aleph");
     await page.getByRole("button", { name: "Añadir El Aleph" }).click();
 
@@ -294,7 +311,9 @@ test.describe("Mocked nueva venta flow", () => {
     });
   });
 
-  test("confirms a mocked sale and captures success state", async ({ page }) => {
+  test("confirms a mocked sale and captures success state", async ({
+    page,
+  }) => {
     await page.getByRole("button", { name: "Añadir Print Huelin" }).click();
     await page.getByText("Efectivo").click();
     await page.getByRole("button", { name: "Confirmar venta" }).click();
