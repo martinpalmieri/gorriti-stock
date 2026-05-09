@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "../ui/button";
 import type { SaleProduct } from "@/app/(protected)/sales/new/actions";
 import { confirmSale } from "@/app/(protected)/sales/new/actions";
@@ -67,7 +66,6 @@ export function NewSaleLayout({
         source: "supabase" | "mock";
       };
 }) {
-  const router = useRouter();
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentMethod, setPaymentMethod] =
@@ -191,7 +189,6 @@ export function NewSaleLayout({
       });
       setCart([]);
       setSearch("");
-      router.refresh();
     });
   }
 

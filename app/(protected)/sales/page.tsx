@@ -32,11 +32,12 @@ export default async function SalesPage() {
       .from<SaleRow>("sales")
       .select("id, created_at, total_amount, payment_method, status, sale_items(quantity)")
       .order("created_at", { ascending: false })
+      .limit(50)
 
     if (error) {
       loadError = error.message;
     } else {
-      sales = (data ?? []).slice(0, 50).map((row: SaleRow) => ({
+      sales = (data ?? []).map((row: SaleRow) => ({
         id: row.id,
         createdAt: row.created_at,
         totalAmount: row.total_amount,
