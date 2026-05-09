@@ -23,9 +23,42 @@ Gorriti will sell products such as:
 
 The initial categories are books, records/music, and stationery, but categories must be editable because the shop inventory can grow quickly.
 
-The app will be used by only two people, on one dedicated shop computer, most likely a laptop or Mac mini. Login can be simple.
+The app will be used by only two people, on one dedicated shop computer, most likely a laptop or Mac mini.
 
 The UI should be in Spanish.
+
+---
+
+## Current Status
+
+Already implemented:
+
+- Next.js App Router project
+- Spanish app shell
+- Supabase Auth
+- Protected app routes
+- Supabase schema and RLS
+- Product inventory connected to Supabase
+- Product create/edit
+- Initial stock movement on product creation
+- Manual stock correction
+- Stock movement history in product detail
+- Online/offline status indicator
+
+In progress / next:
+
+- Real sale confirmation using Supabase products
+- Sales history
+- CSV export
+
+Still future / non-MVP:
+
+- SumUp integration
+- Barcode scanner integration
+- Distributor CSV/XLSX imports
+- Offline sale queue and sync
+- Advanced stats
+- Multi-user roles
 
 ---
 
@@ -92,7 +125,7 @@ The MVP must include:
 6. Manual stock corrections
 7. Fast search/filtering
 8. CSV export
-9. Basic login or local/private access
+9. Supabase Auth
 10. Spanish UI
 
 ---
@@ -124,7 +157,7 @@ Offline mode is important for the shop in the future.
 
 If internet goes down, the shop should eventually be able to continue recording sales locally and sync them later.
 
-But full offline sync is NOT required for the MVP.
+Full offline sync is not required for the MVP.
 
 ## MVP Requirement
 
@@ -184,7 +217,7 @@ Only these fields should be required:
 
 Everything else can be optional.
 
-When the product is created, the app should also create an initial stock movement.
+When the product is created, the app must also create an initial stock movement.
 
 Example:
 
@@ -195,7 +228,7 @@ Initial stock: 1
 Stock movement:
 type: initial
 quantity_change: +1
-reason: Initial stock
+reason: Stock inicial
 ```
 
 ---
@@ -236,8 +269,9 @@ Sale flow:
 6. User charges the customer manually using SumUp terminal.
 7. After payment succeeds, user clicks "Confirmar venta".
 8. App records the sale.
-9. App creates stock movements.
-10. App reduces product stock.
+9. App creates sale items.
+10. App creates stock movements.
+11. App reduces product stock.
 
 Example:
 
@@ -282,8 +316,9 @@ Examples:
 - Product was counted incorrectly
 - Product was returned
 - Initial stock was wrong
+- New stock arrived manually
 
-Manual correction should create a stock movement.
+Manual correction must create a stock movement.
 
 Example:
 
@@ -320,9 +355,8 @@ Categories are editable.
 
 ## Tables
 
-Recommended tables:
+Main tables:
 
-- users, optional if Supabase Auth is used
 - categories
 - products
 - stock_movements
@@ -343,23 +377,14 @@ created_at timestamptz default now()
 updated_at timestamptz default now()
 ```
 
-Initial categories:
-
-```txt
-Books
-Records / Music
-Stationery
-Prints
-Other
-```
-
-In Spanish UI:
+Current Spanish categories:
 
 ```txt
 Libros
 Discos / Música
 Papelería
 Prints
+Publicación propia
 Otros
 ```
 
@@ -454,7 +479,7 @@ created_at timestamptz default now()
 created_by uuid
 ```
 
-Recommended movement types:
+Movement types:
 
 ```txt
 initial
@@ -469,7 +494,10 @@ Rules:
 - Positive quantity means stock increased.
 - Negative quantity means stock decreased.
 - Every stock change must create a stock movement.
-- `products.current_stock` should be updated transactionally together with the movement.
+- `products.current_stock` should be updated together with the movement.
+- `initial` movements can have `quantity_change >= 0`.
+- Non-initial movements must have `quantity_change <> 0`.
+- Stock must never go below zero.
 
 ---
 
@@ -491,7 +519,7 @@ created_at timestamptz default now()
 created_by uuid
 ```
 
-Recommended sale status:
+Sale status:
 
 ```txt
 confirmed
@@ -535,15 +563,16 @@ Stock updates must be safe.
 
 When confirming a sale:
 
-1. Start a transaction.
-2. Create sale.
-3. Create sale items.
-4. For each sale item:
+1. Start a transaction or use a Postgres RPC.
+2. Validate the sale.
+3. Create sale.
+4. Create sale items.
+5. For each sale item:
    - Check current stock.
-   - Prevent stock from going below zero unless explicitly allowed.
+   - Prevent stock from going below zero.
    - Insert stock movement.
    - Update product current stock.
-5. Commit transaction.
+6. Commit transaction.
 
 If any product does not have enough stock, fail the whole sale and show a useful error.
 
@@ -562,9 +591,9 @@ Product search must be good enough for real shop use.
 
 Minimum behavior:
 
-- Search input at top of products page.
+- Search input at top of inventory page.
 - Search input inside sale flow.
-- Debounced search.
+- Debounced search where useful.
 - Case-insensitive search.
 - Match partial text.
 - Search across:
@@ -583,8 +612,6 @@ Suggested implementation:
 ---
 
 # UI Pages
-
-The app should have these pages:
 
 ## 1. Dashboard / Home
 
@@ -620,6 +647,8 @@ Features:
 - Add product button
 - Edit product button
 - View product detail
+- Manual stock correction
+- Stock movement history
 
 Columns:
 
@@ -674,7 +703,7 @@ Optional:
 When editing an existing product:
 
 - Do not directly edit current stock in the normal edit form.
-- Stock changes should happen through manual stock correction.
+- Stock changes must happen through manual stock correction.
 
 ---
 
@@ -705,6 +734,7 @@ Important:
 - Stock is not updated until confirm.
 - If quantity exceeds available stock, show warning.
 - Confirm button should be disabled if cart is empty.
+- Sale total must be calculated server-side on confirmation.
 
 After confirming sale:
 
@@ -757,51 +787,37 @@ Optional:
 
 # Authentication
 
-Since only two people will use this app, keep auth simple.
+Use Supabase Auth with email/password.
 
-Preferred MVP options:
+Current MVP auth decision:
 
-## Option A: Supabase Auth
+- Any authenticated user can manage everything.
+- No roles.
+- No multi-tenant logic.
+- No employees/staff permissions.
 
-Use Supabase email/password auth.
-
-Pros:
-
-- Safer if deployed online.
-- Easy enough.
-- Future-proof.
-
-Cons:
-
-- Slightly more work.
-
-## Option B: No auth, local/private deployment
-
-Only acceptable if the app is never public.
-
-Recommendation:
-
-Use Supabase Auth unless the deployment is strictly local.
-
-Roles are not needed for MVP.
+Do not build complex role permissions.
 
 ---
 
 # RLS / Security
 
-If Supabase Auth is used:
+RLS is enabled.
 
-- Enable RLS.
-- For MVP, all logged-in users can read/write all app data.
-- No multi-tenant logic needed.
+For MVP:
 
-Example policy:
+- Any authenticated user can read/write app data.
+- No multi-tenant logic.
 
-```txt
-Authenticated users can manage all products, categories, stock movements, sales, and sale items.
-```
+Relevant tables:
 
-Do not build complex role permissions.
+- categories
+- products
+- stock_movements
+- sales
+- sale_items
+
+Do not expose `SUPABASE_SERVICE_ROLE_KEY` in client/browser code.
 
 ---
 
@@ -820,6 +836,7 @@ Nueva venta
 Confirmar venta
 Cancelar
 Stock actual
+Corregir stock
 Corrección de stock
 Historial de movimientos
 Ventas
@@ -901,7 +918,7 @@ Future import needs:
 - Create stock movements
 - Detect duplicates by ISBN/barcode/SKU/name
 
-This is NOT part of MVP.
+This is not part of MVP.
 
 ---
 
@@ -965,351 +982,6 @@ Because stock movements and sales are stored from day one, these stats will be p
 
 ---
 
-# Implementation Phases
-
-## Phase 1 - Project Setup
-
-Tasks:
-
-1. Create Next.js app with TypeScript.
-2. Configure Tailwind.
-3. Configure Supabase client.
-4. Add environment variables.
-5. Set up base layout.
-6. Add Spanish UI structure.
-7. Add basic navigation.
-
-Acceptance criteria:
-
-- App runs locally.
-- Supabase connection works.
-- Basic layout exists.
-- Navigation exists.
-
----
-
-## Phase 2 - Database Schema
-
-Tasks:
-
-1. Create tables:
-   - categories
-   - products
-   - sales
-   - sale_items
-   - stock_movements
-2. Add constraints.
-3. Add timestamps.
-4. Add default categories.
-5. Add RLS if using auth.
-6. Generate TypeScript database types.
-
-Acceptance criteria:
-
-- Tables exist.
-- Default categories exist.
-- Products can reference categories.
-- Stock movements can reference products and sales.
-- Sales can reference sale items.
-
----
-
-## Phase 3 - Product Management
-
-Tasks:
-
-1. Build inventory page.
-2. Build product search.
-3. Build category filter.
-4. Build add product form.
-5. Build edit product form.
-6. Build product detail page.
-7. Create initial stock movement when product is created.
-8. Do not allow direct stock editing after creation except through stock correction.
-
-Acceptance criteria:
-
-- User can create product.
-- User can edit product info.
-- User can search product.
-- User can filter by category.
-- User can see product detail.
-- Initial stock movement is created correctly.
-
----
-
-## Phase 4 - Stock Movements
-
-Tasks:
-
-1. Build stock movement table/list on product detail.
-2. Build manual stock correction modal/form.
-3. Implement stock correction transaction:
-   - read current stock
-   - insert movement
-   - update current stock
-4. Prevent invalid stock below zero unless explicitly allowed.
-
-Acceptance criteria:
-
-- User can correct stock.
-- Every correction creates a movement.
-- Current stock updates correctly.
-- Product detail shows movement history.
-
----
-
-## Phase 5 - Sale Flow
-
-Tasks:
-
-1. Build new sale page.
-2. Add product search inside sale page.
-3. Add cart state.
-4. Add quantity controls.
-5. Show sale total.
-6. Add payment method selector.
-7. Implement confirm sale transaction.
-8. Create sale.
-9. Create sale items.
-10. Create stock movements.
-11. Update product stock.
-12. Handle insufficient stock errors.
-
-Acceptance criteria:
-
-- User can create sale with one product.
-- User can create sale with multiple products.
-- Total is calculated correctly.
-- Stock updates only after confirmation.
-- Sale is recorded.
-- Stock movements are recorded.
-- App prevents selling unavailable stock.
-
----
-
-## Phase 6 - Sales History
-
-Tasks:
-
-1. Build sales list page.
-2. Build sale detail page.
-3. Show sale items.
-4. Show total.
-5. Show payment method.
-6. Show date/time.
-
-Acceptance criteria:
-
-- User can see previous sales.
-- User can inspect sale details.
-- Sale data matches stock movements.
-
----
-
-## Phase 7 - Categories and Settings
-
-Tasks:
-
-1. Build settings page.
-2. Allow creating categories.
-3. Allow editing category names.
-4. Do not delete categories if products exist.
-5. Add CSV export button.
-
-Acceptance criteria:
-
-- User can add new category.
-- User can edit category.
-- Product form uses categories dynamically.
-- Product CSV export works.
-
----
-
-## Phase 8 - Online/Offline Status Indicator
-
-Tasks:
-
-1. Add online/offline status indicator using browser network status.
-2. If offline, show warning:
-   - "Sin conexión. El modo offline completo todavía no está disponible."
-3. Disable actions that require Supabase when offline, unless safe.
-4. Keep code structured for future offline queue.
-
-Acceptance criteria:
-
-- App shows online status.
-- App shows offline warning.
-- App does not silently fail when offline.
-
----
-
-# Suggested Folder Structure
-
-```txt
-app/
-  layout.tsx
-  page.tsx
-  inventory/
-    page.tsx
-    [id]/
-      page.tsx
-  products/
-    new/
-      page.tsx
-    [id]/
-      edit/
-        page.tsx
-  sales/
-    page.tsx
-    new/
-      page.tsx
-    [id]/
-      page.tsx
-  settings/
-    page.tsx
-
-components/
-  layout/
-  products/
-  sales/
-  stock/
-  categories/
-  ui/
-
-lib/
-  supabase/
-  db/
-  stock/
-  sales/
-  csv/
-  formatters/
-
-types/
-  database.types.ts
-```
-
----
-
-# Important Implementation Detail: Stock Transactions
-
-Do not implement stock update as separate loose client calls.
-
-Bad:
-
-```txt
-Client creates sale
-Client updates product stock
-Client creates movement
-```
-
-This can break.
-
-Better:
-
-```txt
-Client calls one server action/API route:
-confirmSale(cart)
-
-Server:
-- validates cart
-- creates sale
-- creates sale_items
-- creates stock_movements
-- updates product stock
-- returns result
-```
-
-Use a PostgreSQL function or server-side transaction.
-
-Recommended: create a Supabase/Postgres RPC function for confirming sales.
-
----
-
-# Suggested Postgres Function
-
-Create a function like:
-
-```sql
-confirm_sale(items jsonb, payment_method text, notes text)
-```
-
-The function should:
-
-1. Validate items.
-2. Create sale.
-3. Create sale_items.
-4. Lock product rows if needed.
-5. Check stock.
-6. Insert stock_movements.
-7. Update products.current_stock.
-8. Return created sale id.
-
-This avoids partial updates.
-
----
-
-# Validation Rules
-
-Product:
-
-- name required
-- category required
-- price required and >= 0
-- cost_price optional but >= 0 if provided
-- current_stock must be integer >= 0
-- barcode optional
-- sku optional
-- isbn optional
-
-Sale:
-
-- cart cannot be empty
-- quantity must be >= 1
-- product must exist
-- product must be active
-- product must have enough stock
-- total must be calculated server-side, not trusted from client
-
----
-
-# UX Priorities
-
-The sale page must be fast.
-
-Important UX details:
-
-- Search input focused by default.
-- Adding product should be quick.
-- After adding a product, search should clear and refocus.
-- Show stock available in search results.
-- Disable adding if stock is 0.
-- Show cart total clearly.
-- Confirm sale button should be obvious.
-
-Product search result example:
-
-```txt
-El Aleph
-Jorge Luis Borges · Libro · €12,00 · Stock: 1
-```
-
-Record example:
-
-```txt
-Unknown Pleasures
-Joy Division · Disco / Música · €24,00 · Stock: 1
-```
-
-Stationery example:
-
-```txt
-Notebook A5
-Midori · Papelería · €8,00 · Stock: 3
-```
-
----
-
 # MVP Acceptance Criteria
 
 The MVP is done when:
@@ -1341,8 +1013,10 @@ The MVP is done when:
 - Create record with artist, label.
 - Create stationery product with brand.
 - Create print without barcode/SKU.
+- Create product with stock 0.
 - Edit product price.
 - Edit product notes.
+- Confirm stock is read-only in edit form.
 - Search by title.
 - Search by author.
 - Search by publisher/label/brand.
@@ -1356,6 +1030,7 @@ The MVP is done when:
 - Correct stock +1.
 - Correct stock -1.
 - Try to correct stock below 0.
+- Confirm correction creates stock movement.
 - View movement history.
 
 ## Sale Tests
@@ -1471,20 +1146,13 @@ Until then, use manual SumUp terminal flow.
 
 ---
 
-# Final Instruction for Codex
+# Current Remaining MVP Priorities
 
-Build this incrementally.
-
-Do not try to build every future feature.
-
-Start with:
-
-1. Database schema
-2. Product CRUD
-3. Stock movements
-4. Sale flow
-5. CSV export
-6. Online/offline status indicator
+1. Real sale confirmation
+2. Sales history using real sales data
+3. CSV export
+4. Basic settings/category management if not complete
+5. Manual polish and reliability fixes
 
 Keep the code simple and maintainable.
 
