@@ -27,6 +27,12 @@ type StockMovement = {
   createdAt: string | null;
 };
 
+type SupabaseRpcResult<T> = Promise<{ data: T | null; error: { message: string } | null }>;
+
+type SupabaseInventoryClient = SupabaseTableClient & {
+  rpc: (fn: string, args: Record<string, unknown>) => SupabaseRpcResult<unknown>;
+};
+
 type StockMovementsResult =
   | { status: "success"; movements: StockMovement[] }
   | { status: "error"; message: string; movements: StockMovement[] };
@@ -475,61 +481,36 @@ export async function correctProductStock(
     };
   }
 
-  const supabase = (await createClient() as unknown) as SupabaseTableClient;
-  const { data: product, error: productError } = await supabase
-    .from<{ id: string; current_stock: number }>("products")
-    .select("id, current_stock")
-    .eq("id", productId)
-    .single();
-
-  if (productError || !product) {
-    return {
-      status: "error",
-      message: productError?.message ?? "No se encontró el producto.",
-      fieldErrors: {},
-      updated: null,
-    };
-  }
-
-  const stockBefore = product.current_stock;
-  const stockAfter = stockBefore + (adjustment ?? 0);
-
-  if (stockAfter < 0) {
-    return {
-      status: "error",
-      message: "El stock resultante no puede ser menor a 0.",
-      fieldErrors: { adjustment: "Este ajuste dejaría el stock en negativo." },
-      updated: null,
-    };
-  }
-
-  const { error: movementError } = await supabase.from("stock_movements").insert({
+  const supabase = (await createClient() as unknown) as SupabaseInventoryClient;
+  const { data, error } = await supabase.rpc("correct_stock", {
     product_id: productId,
-    type: "manual_correction",
-    quantity_change: adjustment,
-    stock_before: stockBefore,
-    stock_after: stockAfter,
+    adjustment,
     reason,
   });
 
-  if (movementError) {
+  if (error) {
+    const message = error.message ?? "No se pudo corregir el stock.";
+    const fieldErrorsFromError: StockCorrectionState["fieldErrors"] = {};
+
+    if (message.toLocaleLowerCase("es").includes("menor a 0")) {
+      fieldErrorsFromError.adjustment = "Este ajuste dejaría el stock en negativo.";
+    }
+
     return {
       status: "error",
-      message: movementError.message,
-      fieldErrors: {},
+      message,
+      fieldErrors: fieldErrorsFromError,
       updated: null,
     };
   }
 
-  const { error: updateError } = await supabase
-    .from("products")
-    .update({ current_stock: stockAfter })
-    .eq("id", productId);
-
-  if (updateError) {
+  type CorrectStockRpcRow = { current_stock: number };
+  const rows = Array.isArray(data) ? (data as CorrectStockRpcRow[]) : null;
+  const row = rows?.[0];
+  if (!row || typeof row.current_stock !== "number") {
     return {
       status: "error",
-      message: updateError.message,
+      message: "No se pudo corregir el stock.",
       fieldErrors: {},
       updated: null,
     };
@@ -541,6 +522,6 @@ export async function correctProductStock(
     status: "success",
     message: "Stock corregido",
     fieldErrors: {},
-    updated: { productId, currentStock: stockAfter },
+    updated: { productId, currentStock: row.current_stock },
   };
 }

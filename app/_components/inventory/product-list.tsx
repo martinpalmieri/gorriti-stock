@@ -169,6 +169,7 @@ function ProductForm({
           type="button"
           variant="secondary"
           onClick={onClose}
+          disabled={pending}
         >
           Cerrar
         </Button>
@@ -346,6 +347,7 @@ function ProductForm({
             type="button"
             variant="secondary"
             onClick={onClose}
+            disabled={pending}
           >
             Cancelar
           </Button>
@@ -475,6 +477,7 @@ function StockCorrectionModal({
             type="button"
             variant="secondary"
             onClick={onClose}
+            disabled={pending}
           >
             Cerrar
           </Button>
@@ -546,7 +549,12 @@ function StockCorrectionModal({
           </Field>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-            <Button type="button" variant="secondary" onClick={onClose}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onClose}
+              disabled={pending}
+            >
               Cancelar
             </Button>
             <Button type="submit" disabled={pending}>

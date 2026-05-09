@@ -19,8 +19,8 @@
 /blob-report/
 playwright/.cache/
 
-# Keep intentional review screenshots in docs/screenshots
-# Do not ignore docs/screenshots/*.png
+# Generated screenshots should never be committed
+/docs/screenshots/
 
 # next.js
 /.next/
