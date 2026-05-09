@@ -1,90 +1,27 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "../ui/button";
+import type { SaleProduct } from "@/app/(protected)/sales/new/actions";
+import { confirmSale } from "@/app/(protected)/sales/new/actions";
 
-type PaymentMethod = "sumup" | "cash" | "other";
-
-type Product = {
-  id: string;
-  title: string;
-  creator: string;
-  category: string;
-  priceCents: number;
-  stock: number;
-  barcode: string;
-  sku: string;
-  isbn?: string;
-};
+type PaymentMethod = "manual_sumup" | "cash" | "other";
 
 type CartItem = {
-  product: Product;
+  product: SaleProduct;
   quantity: number;
 };
 
 type SuccessSale = {
-  totalCents: number;
+  totalAmount: string;
   itemCount: number;
   paymentMethod: PaymentMethod;
+  saleId: string;
 };
 
-const mockedProducts: Product[] = [
-  {
-    id: "book-aleph",
-    title: "El Aleph",
-    creator: "Jorge Luis Borges",
-    category: "Libro",
-    priceCents: 1200,
-    stock: 1,
-    barcode: "9780000000011",
-    sku: "LIB-ALEPH-001",
-    isbn: "978-0-00-000001-1",
-  },
-  {
-    id: "music-unknown-pleasures",
-    title: "Unknown Pleasures",
-    creator: "Joy Division",
-    category: "Disco / Música",
-    priceCents: 2400,
-    stock: 1,
-    barcode: "5021732000024",
-    sku: "MUS-JD-UP-001",
-  },
-  {
-    id: "stationery-midori-a5",
-    title: "Cuaderno A5",
-    creator: "Midori",
-    category: "Papelería",
-    priceCents: 800,
-    stock: 3,
-    barcode: "4902805152884",
-    sku: "PAP-MID-A5-003",
-  },
-  {
-    id: "print-huelin",
-    title: "Print Huelin",
-    creator: "Gorriti",
-    category: "Print",
-    priceCents: 1800,
-    stock: 5,
-    barcode: "8437000000185",
-    sku: "ART-HUELIN-005",
-  },
-  {
-    id: "own-fanzine-01",
-    title: "Fanzine Gorriti 01",
-    creator: "Gorriti Editorial",
-    category: "Publicación propia",
-    priceCents: 600,
-    stock: 10,
-    barcode: "8437000000062",
-    sku: "PRO-FAN-001",
-    isbn: "978-8-43-700006-2",
-  },
-];
-
 const paymentMethods: Array<{ label: string; value: PaymentMethod }> = [
-  { label: "SumUp manual", value: "sumup" },
+  { label: "SumUp manual", value: "manual_sumup" },
   { label: "Efectivo", value: "cash" },
   { label: "Otro", value: "other" },
 ];
@@ -102,7 +39,7 @@ function normalize(value: string) {
   return value.toLocaleLowerCase("es").trim();
 }
 
-function productMatchesSearch(product: Product, query: string) {
+function productMatchesSearch(product: SaleProduct, query: string) {
   const normalizedQuery = normalize(query);
 
   if (!normalizedQuery) {
@@ -126,17 +63,32 @@ function getPaymentLabel(paymentMethod: PaymentMethod) {
   );
 }
 
-export function NewSaleLayout() {
+export function NewSaleLayout({
+  productsResult,
+}: {
+  productsResult:
+    | { status: "success"; products: SaleProduct[]; source: "supabase" | "mock" }
+    | {
+        status: "error";
+        message: string;
+        products: SaleProduct[];
+        source: "supabase" | "mock";
+      };
+}) {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("sumup");
+  const [paymentMethod, setPaymentMethod] =
+    useState<PaymentMethod>("manual_sumup");
   const [successSale, setSuccessSale] = useState<SuccessSale | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   const filteredProducts = useMemo(() => {
-    return mockedProducts.filter((product) =>
+    return productsResult.products.filter((product) =>
       productMatchesSearch(product, search),
     );
-  }, [search]);
+  }, [productsResult.products, search]);
 
   const cartTotalCents = useMemo(() => {
     return cart.reduce(
@@ -153,8 +105,9 @@ export function NewSaleLayout() {
     return cart.find((item) => item.product.id === productId)?.quantity ?? 0;
   }
 
-  function addProduct(product: Product) {
+  function addProduct(product: SaleProduct) {
     setSuccessSale(null);
+    setErrorMessage(null);
     setCart((currentCart) => {
       const existingItem = currentCart.find(
         (item) => item.product.id === product.id,
@@ -179,6 +132,7 @@ export function NewSaleLayout() {
 
   function updateQuantity(productId: string, nextQuantity: number) {
     setSuccessSale(null);
+    setErrorMessage(null);
     setCart((currentCart) =>
       currentCart.flatMap((item) => {
         if (item.product.id !== productId) {
@@ -201,6 +155,7 @@ export function NewSaleLayout() {
 
   function removeItem(productId: string) {
     setSuccessSale(null);
+    setErrorMessage(null);
     setCart((currentCart) =>
       currentCart.filter((item) => item.product.id !== productId),
     );
@@ -209,22 +164,43 @@ export function NewSaleLayout() {
   function cancelSale() {
     setCart([]);
     setSearch("");
-    setPaymentMethod("sumup");
+    setPaymentMethod("manual_sumup");
     setSuccessSale(null);
+    setErrorMessage(null);
   }
 
-  function confirmSale() {
-    if (cart.length === 0) {
+  function handleConfirmSale() {
+    if (cart.length === 0 || isPending) {
       return;
     }
 
-    setSuccessSale({
-      totalCents: cartTotalCents,
-      itemCount: cartItemCount,
-      paymentMethod,
+    setErrorMessage(null);
+
+    startTransition(async () => {
+      const result = await confirmSale({
+        items: cart.map((item) => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+        })),
+        paymentMethod,
+        notes: null,
+      });
+
+      if (result.status === "error") {
+        setErrorMessage(result.message);
+        return;
+      }
+
+      setSuccessSale({
+        saleId: result.saleId,
+        totalAmount: result.totalAmount,
+        itemCount: result.itemCount,
+        paymentMethod: result.paymentMethod,
+      });
+      setCart([]);
+      setSearch("");
+      router.refresh();
     });
-    setCart([]);
-    setSearch("");
   }
 
   return (
@@ -239,9 +215,11 @@ export function NewSaleLayout() {
               Busca por título, creador, categoría, código de barras, SKU o ISBN.
             </p>
           </div>
-          <span className="rounded-full bg-amber-50 px-4 py-2 text-sm font-bold text-amber-900 ring-1 ring-amber-200">
-            Datos simulados
-          </span>
+          {productsResult.source === "mock" ? (
+            <span className="rounded-full bg-amber-50 px-4 py-2 text-sm font-bold text-amber-900 ring-1 ring-amber-200">
+              Datos simulados
+            </span>
+          ) : null}
         </div>
 
         <label className="mt-5 block">
@@ -361,6 +339,20 @@ export function NewSaleLayout() {
             Venta mostrador
           </span>
         </div>
+
+        {errorMessage ? (
+          <div
+            className="mt-5 rounded-3xl border border-red-200 bg-red-50 p-5 text-red-950"
+            role="alert"
+          >
+            <p className="text-sm font-bold uppercase tracking-[0.16em] text-red-800">
+              {errorMessage.toLocaleLowerCase("es").includes("stock")
+                ? "Stock insuficiente"
+                : "No se pudo confirmar la venta"}
+            </p>
+            <p className="mt-2 text-sm font-semibold">{errorMessage}</p>
+          </div>
+        ) : null}
 
         {cart.length > 0 ? (
           <div className="mt-5 space-y-3">
@@ -487,16 +479,17 @@ export function NewSaleLayout() {
             variant="secondary"
             className="w-full"
             onClick={cancelSale}
+            disabled={isPending}
           >
             Cancelar venta
           </Button>
           <Button
             type="button"
             className="w-full"
-            onClick={confirmSale}
-            disabled={cart.length === 0}
+            onClick={handleConfirmSale}
+            disabled={cart.length === 0 || isPending}
           >
-            Confirmar venta
+            {isPending ? "Confirmando..." : "Confirmar venta"}
           </Button>
         </div>
 
@@ -510,7 +503,7 @@ export function NewSaleLayout() {
               Venta confirmada
             </p>
             <h4 className="mt-2 text-2xl font-black">
-              {formatPrice(successSale.totalCents)} registrados
+              {euroFormatter.format(Number(successSale.totalAmount))} registrados
             </h4>
             <p className="mt-2 text-sm font-semibold">
               {successSale.itemCount} unidad
@@ -518,7 +511,7 @@ export function NewSaleLayout() {
               {getPaymentLabel(successSale.paymentMethod)}.
             </p>
             <p className="mt-2 text-sm text-emerald-900">
-              Simulación completada. No se ha descontado stock ni conectado Supabase.
+              ID de venta: {successSale.saleId}.
             </p>
           </div>
         ) : null}

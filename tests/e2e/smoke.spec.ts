@@ -316,11 +316,6 @@ test.describe("Mocked nueva venta flow", () => {
     await expect(
       page.getByRole("button", { name: "Confirmar venta" }),
     ).toBeDisabled();
-
-    await page.screenshot({
-      path: path.join(screenshotDir, "sale-empty.png"),
-      fullPage: true,
-    });
   });
 
   test("searches mocked products and captures matching results", async ({
@@ -331,11 +326,6 @@ test.describe("Mocked nueva venta flow", () => {
     await expect(page.getByText("Print Huelin")).toBeVisible();
     await expect(page.getByText("Fanzine Gorriti 01")).toBeVisible();
     await expect(page.getByText("Unknown Pleasures")).toHaveCount(0);
-
-    await page.screenshot({
-      path: path.join(screenshotDir, "sale-search-results.png"),
-      fullPage: true,
-    });
   });
 
   test("adds multiple products and captures the cart total", async ({
@@ -356,11 +346,6 @@ test.describe("Mocked nueva venta flow", () => {
       "Cuaderno A5",
     );
     await expect(page.getByLabel("Carrito de venta")).toContainText("40,00");
-
-    await page.screenshot({
-      path: path.join(screenshotDir, "sale-cart.png"),
-      fullPage: true,
-    });
   });
 
   test("captures stock limit controls for a one-stock product", async ({
@@ -378,11 +363,6 @@ test.describe("Mocked nueva venta flow", () => {
     await expect(
       page.getByRole("button", { name: "Añadir El Aleph" }),
     ).toBeDisabled();
-
-    await page.screenshot({
-      path: path.join(screenshotDir, "sale-stock-limit.png"),
-      fullPage: true,
-    });
   });
 
   test("confirms a mocked sale and captures success state", async ({
@@ -395,10 +375,5 @@ test.describe("Mocked nueva venta flow", () => {
     await expect(page.getByText("Venta confirmada")).toBeVisible();
     await expect(page.getByText("18,00 € registrados")).toBeVisible();
     await expect(page.getByText(/Pago: Efectivo/)).toBeVisible();
-
-    await page.screenshot({
-      path: path.join(screenshotDir, "sale-success.png"),
-      fullPage: true,
-    });
   });
 });
