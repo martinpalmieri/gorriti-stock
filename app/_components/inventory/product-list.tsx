@@ -424,7 +424,8 @@ export function ProductList({
         </div>
       ) : null}
 
-      <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_190px_170px]">
+      <div className="mt-5 rounded-2xl border border-stone-200 bg-stone-50 p-4 shadow-sm">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_190px_170px]">
         <label className="block">
           <span className="text-sm font-semibold text-stone-800">
             Buscar producto
@@ -496,6 +497,7 @@ export function ProductList({
             ))}
           </select>
         </label>
+        </div>
       </div>
 
       <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">

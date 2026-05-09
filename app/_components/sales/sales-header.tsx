@@ -4,14 +4,6 @@ export function SalesHeader() {
       <p className="text-sm font-semibold uppercase tracking-[0.24em] text-amber-700">
         Ventas
       </p>
-      <h2 className="mt-3 text-3xl font-bold tracking-tight">
-        Historial de ventas
-      </h2>
-      <p className="mt-3 max-w-2xl text-stone-600">
-        Placeholder con ventas simuladas. El historial real, los detalles y las
-        exportaciones llegarán más adelante.
-      </p>
     </header>
   );
 }
-
