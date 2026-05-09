@@ -35,6 +35,7 @@ type StockCorrectionState = {
   status: "idle" | "success" | "error";
   message: string | null;
   fieldErrors: Partial<Record<"adjustment" | "reason", string>>;
+  updated?: { productId: string; currentStock: number } | null;
 };
 
 type ProductFormValues = {
@@ -424,6 +425,7 @@ export async function correctProductStock(
       ...previousState,
       status: "error",
       message: "No se encontró el producto.",
+      updated: null,
     };
   }
 
@@ -444,6 +446,7 @@ export async function correctProductStock(
       status: "error",
       message: "Revisa los campos marcados.",
       fieldErrors,
+      updated: null,
     };
   }
 
@@ -455,11 +458,21 @@ export async function correctProductStock(
     });
 
     if (result.status === "error") {
-      return { status: "error", message: result.message, fieldErrors: {} };
+      return {
+        status: "error",
+        message: result.message,
+        fieldErrors: {},
+        updated: null,
+      };
     }
 
     revalidatePath("/inventory");
-    return { status: "success", message: "Stock corregido", fieldErrors: {} };
+    return {
+      status: "success",
+      message: "Stock corregido",
+      fieldErrors: {},
+      updated: { productId, currentStock: result.currentStock },
+    };
   }
 
   const supabase = (await createClient() as unknown) as SupabaseTableClient;
@@ -474,6 +487,7 @@ export async function correctProductStock(
       status: "error",
       message: productError?.message ?? "No se encontró el producto.",
       fieldErrors: {},
+      updated: null,
     };
   }
 
@@ -485,6 +499,7 @@ export async function correctProductStock(
       status: "error",
       message: "El stock resultante no puede ser menor a 0.",
       fieldErrors: { adjustment: "Este ajuste dejaría el stock en negativo." },
+      updated: null,
     };
   }
 
@@ -498,7 +513,12 @@ export async function correctProductStock(
   });
 
   if (movementError) {
-    return { status: "error", message: movementError.message, fieldErrors: {} };
+    return {
+      status: "error",
+      message: movementError.message,
+      fieldErrors: {},
+      updated: null,
+    };
   }
 
   const { error: updateError } = await supabase
@@ -507,7 +527,12 @@ export async function correctProductStock(
     .eq("id", productId);
 
   if (updateError) {
-    return { status: "error", message: updateError.message, fieldErrors: {} };
+    return {
+      status: "error",
+      message: updateError.message,
+      fieldErrors: {},
+      updated: null,
+    };
   }
 
   revalidatePath("/inventory");
@@ -516,5 +541,6 @@ export async function correctProductStock(
     status: "success",
     message: "Stock corregido",
     fieldErrors: {},
+    updated: { productId, currentStock: stockAfter },
   };
 }

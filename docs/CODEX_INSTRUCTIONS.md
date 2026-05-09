@@ -153,6 +153,28 @@ Keep the UI practical for shop-counter use:
 
 Use simple Tailwind classes.
 
+## Visual style
+
+This app is an internal backoffice for one shop, not a SaaS product.
+
+Prefer:
+
+- simple layouts
+- compact spacing
+- subtle borders
+- small/medium buttons
+- readable tables/lists
+- boring but clear UI
+
+Avoid:
+
+- large bubbly cards
+- oversized buttons
+- excessive rounded corners
+- heavy shadows
+- decorative dashboard styling
+- CRM/SaaS-like visual polish
+
 ## Next.js note
 
 This project uses a recent Next.js version. Before changing framework-specific behavior, check the installed Next.js docs or existing project patterns.

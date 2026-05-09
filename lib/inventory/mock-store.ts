@@ -110,7 +110,9 @@ export function correctFallbackStock(input: {
   productId: string;
   adjustment: number;
   reason: string;
-}): { status: "success" } | { status: "error"; message: string } {
+}):
+  | { status: "success"; currentStock: number }
+  | { status: "error"; message: string } {
   const store = globalStore.gorritiInventoryStore;
   const product = store?.products.find((item) => item.id === input.productId);
 
@@ -153,5 +155,5 @@ export function correctFallbackStock(input: {
     createdAt: now,
   });
 
-  return { status: "success" };
+  return { status: "success", currentStock: stockAfter };
 }

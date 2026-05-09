@@ -4,6 +4,7 @@ import {
   useActionState,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -66,6 +67,7 @@ type StockCorrectionFormState = {
   status: "idle" | "success" | "error";
   message: string | null;
   fieldErrors: Partial<Record<"adjustment" | "reason", string>>;
+  updated?: { productId: string; currentStock: number } | null;
 };
 
 const initialStockCorrectionState: StockCorrectionFormState = {
@@ -415,13 +417,15 @@ function StockCorrectionModal({
   open: boolean;
   product: Product | null;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (update: { productId: string; currentStock: number } | null) => void;
 }) {
-  const router = useRouter();
   const [state, formAction, pending] = useActionState(
     correctProductStock,
     initialStockCorrectionState,
   );
+  const onCloseRef = useRef(onClose);
+  const onSuccessRef = useRef(onSuccess);
+  const didHandleSuccessRef = useRef(false);
 
   const currentStock = product?.currentStock ?? 0;
   const fieldErrors = state.fieldErrors ?? {};
@@ -436,18 +440,21 @@ function StockCorrectionModal({
     adjustment === null ? currentStock : currentStock + adjustment;
 
   useEffect(() => {
-    if (state.status === "success") {
-      router.refresh();
-      onSuccess();
-      onClose();
+    onCloseRef.current = onClose;
+    onSuccessRef.current = onSuccess;
+  }, [onClose, onSuccess]);
+
+  useEffect(() => {
+    if (state.status === "success" && !didHandleSuccessRef.current) {
+      didHandleSuccessRef.current = true;
+      onSuccessRef.current(state.updated ?? null);
+      onCloseRef.current();
     }
-  }, [onClose, onSuccess, router, state.status]);
+  }, [state.status, state.updated]);
 
   if (!open || !product) {
     return null;
   }
-
-  const handleClose = onClose;
 
   return (
     <div
@@ -470,7 +477,7 @@ function StockCorrectionModal({
             type="button"
             variant="secondary"
             className="px-4 py-2"
-            onClick={handleClose}
+            onClick={onClose}
           >
             Cerrar
           </Button>
@@ -542,7 +549,7 @@ function StockCorrectionModal({
           </Field>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-            <Button type="button" variant="secondary" onClick={handleClose}>
+            <Button type="button" variant="secondary" onClick={onClose}>
               Cancelar
             </Button>
             <Button type="submit" disabled={pending}>
@@ -560,6 +567,9 @@ export function ProductList({
   products,
   loadError,
 }: ProductListProps) {
+  const [stockOverrides, setStockOverrides] = useState<Record<string, number>>(
+    {},
+  );
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Todas");
   const [condition, setCondition] = useState<ProductConditionValue | "Todas">(
@@ -568,20 +578,43 @@ export function ProductList({
   const [stockFilter, setStockFilter] =
     useState<(typeof stockFilters)[number]["value"]>("all");
   const [formMode, setFormMode] = useState<FormMode>({ type: "closed" });
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(
-    null,
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(() =>
+    products[0]?.id ? products[0].id : null,
   );
-  const [stockCorrectionProduct, setStockCorrectionProduct] =
-    useState<Product | null>(null);
+  const [stockCorrectionProductId, setStockCorrectionProductId] = useState<
+    string | null
+  >(null);
   const [stockCorrectionOpen, setStockCorrectionOpen] = useState(false);
   const [stockCorrectionSession, setStockCorrectionSession] = useState(0);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [movementsError, setMovementsError] = useState<string | null>(null);
 
+  const clientProducts = useMemo(() => {
+    if (Object.keys(stockOverrides).length === 0) {
+      return products;
+    }
+
+    return products.map((product) => {
+      const override = stockOverrides[product.id];
+      return typeof override === "number"
+        ? { ...product, currentStock: override }
+        : product;
+    });
+  }, [products, stockOverrides]);
+
+  const effectiveSelectedProductId =
+    selectedProductId ?? clientProducts[0]?.id ?? null;
+
   const selectedProduct =
-    products.find((product) => product.id === selectedProductId) ??
-    products[0] ??
+    clientProducts.find((product) => product.id === effectiveSelectedProductId) ??
+    clientProducts[0] ??
     null;
+
+  const stockCorrectionProduct =
+    stockCorrectionProductId === null
+      ? null
+      : clientProducts.find((product) => product.id === stockCorrectionProductId) ??
+        null;
 
   const fetchMovements = async (productId: string) => {
     try {
@@ -600,7 +633,7 @@ export function ProductList({
   };
 
   const openStockCorrection = (product: Product) => {
-    setStockCorrectionProduct(product);
+    setStockCorrectionProductId(product.id);
     setStockCorrectionOpen(true);
     setStockCorrectionSession((value) => value + 1);
   };
@@ -611,7 +644,7 @@ export function ProductList({
   };
 
   const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
+    return clientProducts.filter((product) => {
       const matchesCategory =
         category === "Todas" || product.categoryId === category;
       const matchesCondition =
@@ -628,7 +661,7 @@ export function ProductList({
         productMatchesSearch(product, search)
       );
     });
-  }, [category, condition, products, search, stockFilter]);
+  }, [category, condition, clientProducts, search, stockFilter]);
 
   return (
     <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-stone-200 sm:p-6">
@@ -673,9 +706,19 @@ export function ProductList({
         key={stockCorrectionSession}
         open={stockCorrectionOpen}
         product={stockCorrectionProduct}
-        onClose={() => setStockCorrectionOpen(false)}
-        onSuccess={() => {
-          if (selectedProduct) {
+        onClose={() => {
+          setStockCorrectionOpen(false);
+          setStockCorrectionProductId(null);
+        }}
+        onSuccess={(update) => {
+          if (update) {
+            setStockOverrides((current) => ({
+              ...current,
+              [update.productId]: update.currentStock,
+            }));
+            void fetchMovements(update.productId);
+            setSelectedProductId(update.productId);
+          } else if (selectedProduct) {
             void fetchMovements(selectedProduct.id);
           }
         }}
