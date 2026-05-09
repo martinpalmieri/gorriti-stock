@@ -723,9 +723,8 @@ Flow:
 - Quantity controls
 - Total amount
 - Payment method selector:
-  - SumUp manual
-  - Cash
-  - Other
+  - Tarjeta / SumUp
+  - Efectivo
 - Confirm sale button
 - Cancel sale button
 

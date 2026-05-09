@@ -22,7 +22,7 @@ export default async function SalesPage() {
       id: string;
       created_at: string | null;
       total_amount: string;
-      payment_method: "manual_sumup" | "cash" | "other" | null;
+      payment_method: string | null;
       status: string;
       sale_items?: Array<{ quantity: number }>;
     };

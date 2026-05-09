@@ -48,6 +48,7 @@ export function createFallbackProduct(
     ...product,
     id: `local-product-${crypto.randomUUID()}`,
     currentStock: initialStock,
+    isActive: true,
     createdAt: now,
     updatedAt: now,
   };
@@ -87,6 +88,19 @@ export function updateFallbackProduct(
   return product;
 }
 
+export function setFallbackProductActive(productId: string, isActive: boolean) {
+  const store = globalStore.gorritiInventoryStore;
+  const product = store?.products.find((item) => item.id === productId);
+
+  if (!product) {
+    return null;
+  }
+
+  product.isActive = isActive;
+  product.updatedAt = new Date().toISOString();
+  return product;
+}
+
 export function getFallbackStockMovements(productId: string) {
   const store = globalStore.gorritiInventoryStore;
   const movements = store?.stockMovements ?? [];
@@ -118,6 +132,10 @@ export function correctFallbackStock(input: {
 
   if (!store || !product) {
     return { status: "error", message: "No se encontró el producto." };
+  }
+
+  if (product.isActive !== true) {
+    return { status: "error", message: "Este producto está archivado." };
   }
 
   if (!Number.isInteger(input.adjustment)) {

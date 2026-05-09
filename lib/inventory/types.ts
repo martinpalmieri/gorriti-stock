@@ -22,6 +22,7 @@ export type Product = {
   price: number;
   costPrice: number | null;
   currentStock: number;
+  isActive: boolean;
   condition: ProductConditionValue | null;
   supplier: string;
   barcode: string;

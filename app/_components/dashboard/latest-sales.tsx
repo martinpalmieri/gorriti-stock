@@ -1,5 +1,6 @@
 import { LinkButton } from "../ui/button";
 import type { DashboardLatestSale } from "@/lib/dashboard/load-dashboard";
+import { paymentMethodLabel } from "@/lib/sales/payment-method";
 
 type LatestSalesProps = {
   sales: DashboardLatestSale[];
@@ -27,21 +28,6 @@ function formatDateTime(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function paymentMethodLabel(
-  value: DashboardLatestSale["paymentMethod"],
-): string {
-  switch (value) {
-    case "manual_sumup":
-      return "SumUp manual";
-    case "cash":
-      return "Efectivo";
-    case "other":
-      return "Otro";
-    default:
-      return "—";
-  }
 }
 
 export function LatestSales({ sales }: LatestSalesProps) {

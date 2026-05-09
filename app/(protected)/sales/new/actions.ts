@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { SupabaseTableClient } from "@/lib/inventory/supabase-types";
 
-type PaymentMethod = "manual_sumup" | "cash" | "other";
+type PaymentMethod = "manual_sumup" | "cash";
 
 type SupabaseError = { message: string };
 
@@ -125,7 +125,7 @@ function priceToCents(value: unknown) {
 }
 
 function assertPaymentMethod(value: unknown): value is PaymentMethod {
-  return value === "manual_sumup" || value === "cash" || value === "other";
+  return value === "manual_sumup" || value === "cash";
 }
 
 export async function listActiveProductsForSale(): Promise<ListProductsResult> {

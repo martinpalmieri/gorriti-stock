@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { SaleDetail, SaleListItem } from "@/app/(protected)/sales/actions";
 import { getSaleDetail } from "@/app/(protected)/sales/actions";
+import { paymentMethodLabel } from "@/lib/sales/payment-method";
 
 type SalesListProps = {
   sales: SaleListItem[];
@@ -32,19 +33,6 @@ function formatCurrency(value: string) {
   const numberValue = Number(value);
   if (!Number.isFinite(numberValue)) return value;
   return euroFormatter.format(numberValue);
-}
-
-function paymentMethodLabel(value: SaleListItem["paymentMethod"]) {
-  switch (value) {
-    case "manual_sumup":
-      return "SumUp manual";
-    case "cash":
-      return "Efectivo";
-    case "other":
-      return "Otro";
-    default:
-      return "—";
-  }
 }
 
 function statusLabel(value: string) {

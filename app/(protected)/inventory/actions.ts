@@ -8,6 +8,7 @@ import {
   correctFallbackStock,
   getFallbackCategories,
   getFallbackStockMovements,
+  setFallbackProductActive,
   updateFallbackProduct,
 } from "@/lib/inventory/mock-store";
 import {
@@ -196,12 +197,52 @@ function fallbackProduct(values: ProductFormValues): Omit<Product, "id" | "creat
     price: values.price,
     costPrice: values.costPrice,
     currentStock: values.initialStock,
+    isActive: true,
     condition: values.condition,
     supplier: values.supplier,
     barcode: values.barcode,
     sku: values.sku,
     isbn: values.isbn,
     notes: values.notes,
+  };
+}
+
+export async function setProductActiveStatus(input: {
+  productId: string;
+  isActive: boolean;
+}): Promise<{ status: "success" | "error"; message: string }> {
+  const productId = input.productId.trim();
+  if (!productId) {
+    return { status: "error", message: "No se encontró el producto." };
+  }
+
+  if (!hasSupabasePublicEnv()) {
+    const updated = setFallbackProductActive(productId, input.isActive);
+    if (!updated) {
+      return { status: "error", message: "No se encontró el producto." };
+    }
+
+    revalidatePath("/inventory");
+    return {
+      status: "success",
+      message: input.isActive ? "Producto restaurado" : "Producto archivado",
+    };
+  }
+
+  const supabase = (await createClient() as unknown) as SupabaseTableClient;
+  const { error } = await supabase
+    .from("products")
+    .update({ is_active: input.isActive })
+    .eq("id", productId);
+
+  if (error) {
+    return { status: "error", message: error.message };
+  }
+
+  revalidatePath("/inventory");
+  return {
+    status: "success",
+    message: input.isActive ? "Producto restaurado" : "Producto archivado",
   };
 }
 
@@ -482,6 +523,31 @@ export async function correctProductStock(
   }
 
   const supabase = (await createClient() as unknown) as SupabaseInventoryClient;
+
+  const { data: productRow, error: productError } = await supabase
+    .from<{ is_active: boolean | null }>("products")
+    .select("is_active")
+    .eq("id", productId)
+    .single();
+
+  if (productError) {
+    return {
+      status: "error",
+      message: productError.message ?? "No se pudo corregir el stock.",
+      fieldErrors: {},
+      updated: null,
+    };
+  }
+
+  if (productRow?.is_active !== true) {
+    return {
+      status: "error",
+      message: "Este producto está archivado.",
+      fieldErrors: {},
+      updated: null,
+    };
+  }
+
   const { data, error } = await supabase.rpc("correct_stock", {
     product_id: productId,
     adjustment,

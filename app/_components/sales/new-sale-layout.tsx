@@ -5,8 +5,13 @@ import { useRouter } from "next/navigation";
 import { Button } from "../ui/button";
 import type { SaleProduct } from "@/app/(protected)/sales/new/actions";
 import { confirmSale } from "@/app/(protected)/sales/new/actions";
+import {
+  NEW_SALE_PAYMENT_METHODS,
+  paymentMethodLabel,
+  type AllowedNewSalePaymentMethod,
+} from "@/lib/sales/payment-method";
 
-type PaymentMethod = "manual_sumup" | "cash" | "other";
+type PaymentMethod = AllowedNewSalePaymentMethod;
 
 type CartItem = {
   product: SaleProduct;
@@ -19,12 +24,6 @@ type SuccessSale = {
   paymentMethod: PaymentMethod;
   saleId: string;
 };
-
-const paymentMethods: Array<{ label: string; value: PaymentMethod }> = [
-  { label: "SumUp manual", value: "manual_sumup" },
-  { label: "Efectivo", value: "cash" },
-  { label: "Otro", value: "other" },
-];
 
 const euroFormatter = new Intl.NumberFormat("es-ES", {
   style: "currency",
@@ -54,13 +53,6 @@ function productMatchesSearch(product: SaleProduct, query: string) {
     product.sku,
     product.isbn ?? "",
   ].some((field) => normalize(field).includes(normalizedQuery));
-}
-
-function getPaymentLabel(paymentMethod: PaymentMethod) {
-  return (
-    paymentMethods.find((method) => method.value === paymentMethod)?.label ??
-    "Otro"
-  );
 }
 
 export function NewSaleLayout({
@@ -446,7 +438,7 @@ export function NewSaleLayout({
             Método de pago
           </legend>
           <div className="mt-3 grid gap-2 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
-            {paymentMethods.map((method) => (
+            {NEW_SALE_PAYMENT_METHODS.map((method) => (
               <label
                 key={method.value}
                 className={`flex cursor-pointer items-center justify-center rounded-md border px-3 py-2 text-center text-sm font-medium transition ${
@@ -504,7 +496,7 @@ export function NewSaleLayout({
             <p className="mt-2 text-sm font-semibold">
               {successSale.itemCount} unidad
               {successSale.itemCount === 1 ? "" : "es"} · Pago:{" "}
-              {getPaymentLabel(successSale.paymentMethod)}.
+              {paymentMethodLabel(successSale.paymentMethod)}.
             </p>
             <p className="mt-2 text-sm text-emerald-900">
               ID de venta: {successSale.saleId}.

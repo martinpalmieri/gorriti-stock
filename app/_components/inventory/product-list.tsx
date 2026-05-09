@@ -18,11 +18,13 @@ import {
   createProduct,
   getProductStockMovements,
   correctProductStock,
+  setProductActiveStatus,
   updateProduct,
 } from "@/app/(protected)/inventory/actions";
 import { initialProductFormState } from "@/app/(protected)/inventory/product-form-state";
 import { Button } from "../ui/button";
 import { PageHeader } from "../ui/page-header";
+import type { InventoryStatusFilter } from "@/lib/inventory/data";
 
 const conditionLabels: Record<ProductConditionValue, string> = {
   new: "Nuevo",
@@ -47,6 +49,7 @@ type ProductListProps = {
   categories: Category[];
   products: Product[];
   loadError: string | null;
+  statusFilter: InventoryStatusFilter;
 };
 
 type FormMode =
@@ -571,7 +574,9 @@ export function ProductList({
   categories,
   products,
   loadError,
+  statusFilter,
 }: ProductListProps) {
+  const router = useRouter();
   const [stockOverrides, setStockOverrides] = useState<Record<string, number>>(
     {},
   );
@@ -720,7 +725,7 @@ export function ProductList({
       />
 
       <div className="mt-4 rounded-lg border border-stone-200 bg-stone-50 p-3">
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_190px_170px]">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_190px_170px_170px]">
         <label className="block">
           <span className="text-sm font-semibold text-stone-800">
             Buscar producto
@@ -732,6 +737,25 @@ export function ProductList({
             className="field-control mt-2 text-sm"
             type="search"
           />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-semibold text-stone-800">Visibilidad</span>
+          <select
+            value={statusFilter}
+            onChange={(event) => {
+              const value = event.target.value as InventoryStatusFilter;
+              setSelectedProductId(null);
+              setMovements([]);
+              setMovementsError(null);
+              router.replace(`/inventory?estado=${value}`);
+            }}
+            className="field-control mt-2 text-sm"
+          >
+            <option value="active">Activos</option>
+            <option value="archived">Archivados</option>
+            <option value="all">Todos</option>
+          </select>
         </label>
 
         <label className="block">
@@ -825,9 +849,16 @@ export function ProductList({
                   aria-pressed={selectedProduct?.id === product.id}
                 >
                   <div className="min-w-0">
-                    <p className="font-semibold text-stone-950">
-                      {product.name}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-stone-950">
+                        {product.name}
+                      </p>
+                      {product.isActive !== true ? (
+                        <span className="inline-flex rounded-md border border-stone-300 bg-stone-100 px-2 py-0.5 text-xs font-semibold text-stone-700">
+                          Archivado
+                        </span>
+                      ) : null}
+                    </div>
                     <p className="mt-1 text-sm text-stone-600">
                       {[product.creatorOrAuthor, product.brandPublisherLabel]
                         .filter(Boolean)
@@ -906,6 +937,16 @@ export function ProductList({
             className="rounded-lg border border-stone-200 bg-stone-50 p-4"
             aria-label="Detalle del producto"
           >
+            {selectedProduct.isActive !== true ? (
+              <div className="rounded-md border border-stone-200 bg-white p-3">
+                <p className="text-sm font-semibold text-stone-800">
+                  Este producto está archivado
+                </p>
+                <p className="mt-1 text-sm text-stone-600">
+                  Archivar este producto lo ocultará del inventario normal y de nuevas ventas, pero conservará su historial.
+                </p>
+              </div>
+            ) : null}
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h4 className="mt-2 text-lg font-semibold text-stone-950">
@@ -921,6 +962,7 @@ export function ProductList({
                   variant="secondary"
                   className="whitespace-nowrap text-xs"
                   onClick={() => openStockCorrection(selectedProduct)}
+                  disabled={selectedProduct.isActive !== true}
                 >
                   Corregir stock
                 </Button>
@@ -934,6 +976,57 @@ export function ProductList({
                 >
                   Editar producto
                 </Button>
+                {selectedProduct.isActive === true ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="whitespace-nowrap text-xs"
+                    onClick={async () => {
+                      const confirmed = window.confirm(
+                        "Archivar este producto lo ocultará del inventario normal y de nuevas ventas, pero conservará su historial.\n\n¿Archivar producto?",
+                      );
+                      if (!confirmed) return;
+                      const result = await setProductActiveStatus({
+                        productId: selectedProduct.id,
+                        isActive: false,
+                      });
+                      if (result.status === "success") {
+                        router.refresh();
+                        setSelectedProductId(null);
+                        setMovements([]);
+                        setMovementsError(null);
+                      } else {
+                        // Reutilizamos el banner de error global si existe; si no, alert simple.
+                        window.alert(result.message);
+                      }
+                    }}
+                  >
+                    Archivar producto
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="whitespace-nowrap text-xs"
+                    onClick={async () => {
+                      const confirmed = window.confirm(
+                        "Restaurar este producto lo mostrará de nuevo en el inventario normal y en nuevas ventas.\n\n¿Restaurar producto?",
+                      );
+                      if (!confirmed) return;
+                      const result = await setProductActiveStatus({
+                        productId: selectedProduct.id,
+                        isActive: true,
+                      });
+                      if (result.status === "success") {
+                        router.refresh();
+                      } else {
+                        window.alert(result.message);
+                      }
+                    }}
+                  >
+                    Restaurar producto
+                  </Button>
+                )}
               </div>
             </div>
 

@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { SupabaseTableClient } from "@/lib/inventory/supabase-types";
 
-type PaymentMethod = "manual_sumup" | "cash" | "other" | null;
+type PaymentMethod = string | null;
 type SaleStatus = "confirmed" | "cancelled" | string;
 
 export type SaleListItem = {

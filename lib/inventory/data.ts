@@ -35,6 +35,7 @@ function mapProduct(row: ProductRow): Product {
     price: toNumber(row.price) ?? 0,
     costPrice: toNumber(row.cost_price),
     currentStock: row.current_stock,
+    isActive: row.is_active ?? true,
     condition: row.condition as ProductConditionValue | null,
     supplier: row.supplier ?? "",
     barcode: row.barcode ?? "",
@@ -46,29 +47,47 @@ function mapProduct(row: ProductRow): Product {
   };
 }
 
-export async function getInventoryData(): Promise<{
+export type InventoryStatusFilter = "active" | "archived" | "all";
+
+export async function getInventoryData(input?: {
+  status?: InventoryStatusFilter;
+}): Promise<{
   categories: Category[];
   products: Product[];
   error: string | null;
 }> {
+  const status = input?.status ?? "active";
   if (!hasSupabasePublicEnv()) {
+    const allFallbackProducts = getFallbackProducts();
+    const filteredFallbackProducts =
+      status === "all"
+        ? allFallbackProducts
+        : allFallbackProducts.filter((p) =>
+            status === "active" ? p.isActive === true : p.isActive !== true,
+          );
     return {
       categories: getFallbackCategories(),
-      products: getFallbackProducts(),
+      products: filteredFallbackProducts,
       error: null,
     };
   }
 
   const supabase = (await createClient() as unknown) as SupabaseTableClient;
+  const productsQuery = supabase
+    .from<ProductRow>("products")
+    .select(
+      "id, name, category_id, creator_or_author, brand_publisher_label, price, cost_price, current_stock, is_active, condition, supplier, barcode, sku, isbn, notes, created_at, updated_at, categories:category_id(name)",
+    );
+
+  if (status === "active") {
+    productsQuery.eq("is_active", true);
+  } else if (status === "archived") {
+    productsQuery.eq("is_active", false);
+  }
+
   const [categoriesResult, productsResult] = await Promise.all([
     supabase.from<Category>("categories").select("id, name, slug").order("name"),
-    supabase
-      .from<ProductRow>("products")
-      .select(
-        "id, name, category_id, creator_or_author, brand_publisher_label, price, cost_price, current_stock, condition, supplier, barcode, sku, isbn, notes, created_at, updated_at, categories:category_id(name)",
-      )
-      .eq("is_active", true)
-      .order("updated_at", { ascending: false }),
+    productsQuery.order("updated_at", { ascending: false }),
   ]);
 
   if (categoriesResult.error || productsResult.error) {
