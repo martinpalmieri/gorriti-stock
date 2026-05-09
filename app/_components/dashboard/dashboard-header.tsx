@@ -12,7 +12,7 @@ export function DashboardHeader() {
             Resumen de la tienda
           </h2>
         </div>
-        <LinkButton href="/sales/new">Crear nueva venta</LinkButton>
+        <LinkButton href="/sales/new">Nueva venta</LinkButton>
       </div>
     </header>
   );

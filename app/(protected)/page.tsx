@@ -1,27 +1,71 @@
 import { DashboardHeader } from "../_components/dashboard/dashboard-header";
 import { LatestSales } from "../_components/dashboard/latest-sales";
+import { LatestStockMovements } from "../_components/dashboard/latest-stock-movements";
 import { SummaryCards } from "../_components/dashboard/summary-cards";
+import { loadDashboardData } from "@/lib/dashboard/load-dashboard";
 
-const summaryCards = [
-  { label: "Ventas de hoy", value: "€342", detail: "8 ventas registradas", tone: "bg-amber-100 text-amber-900" },
-  { label: "Productos en stock", value: "186", detail: "Libros, discos y papelería", tone: "bg-emerald-100 text-emerald-900" },
-  { label: "Productos sin stock", value: "12", detail: "Pendientes de reposición", tone: "bg-rose-100 text-rose-900" },
-];
+const euroFormatter = new Intl.NumberFormat("es-ES", {
+  style: "currency",
+  currency: "EUR",
+});
 
-const latestSales = [
-  { id: "V-1042", time: "12:45", items: "El Aleph + Cuaderno A5", total: "€31" },
-  { id: "V-1041", time: "11:20", items: "Vinilo Miles Davis", total: "€24" },
-  { id: "V-1040", time: "10:05", items: "Lámina Gorriti", total: "€18" },
-];
+function formatEuroTotal(value: number): string {
+  return euroFormatter.format(value);
+}
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const data = await loadDashboardData();
+
+  const ventasDetail =
+    data.todaySalesCount === 1
+      ? "1 venta confirmada"
+      : `${data.todaySalesCount} ventas confirmadas`;
+
+  const summaryCards = [
+    {
+      label: "Ventas de hoy",
+      value: String(data.todaySalesCount),
+      detail: ventasDetail,
+      tone: "bg-amber-100 text-amber-900",
+    },
+    {
+      label: "Ingresos de hoy",
+      value: formatEuroTotal(data.todayRevenueTotal),
+      detail: "Total de ventas confirmadas hoy",
+      tone: "bg-sky-100 text-sky-900",
+    },
+    {
+      label: "Productos en stock",
+      value: String(data.productsInStock),
+      detail: "Productos activos con existencias",
+      tone: "bg-emerald-100 text-emerald-900",
+    },
+    {
+      label: "Productos sin stock",
+      value: String(data.productsOutOfStock),
+      detail: "Productos activos agotados",
+      tone: "bg-rose-100 text-rose-900",
+    },
+  ];
+
   return (
     <div className="space-y-8">
       <DashboardHeader />
 
+      {data.loadError ? (
+        <div
+          role="alert"
+          className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-900"
+        >
+          No se pudieron cargar los datos del panel: {data.loadError}
+        </div>
+      ) : null}
+
       <SummaryCards cards={summaryCards} />
 
-      <LatestSales sales={latestSales} />
+      <LatestSales sales={data.latestSales} />
+
+      <LatestStockMovements movements={data.latestMovements} />
     </div>
   );
 }
