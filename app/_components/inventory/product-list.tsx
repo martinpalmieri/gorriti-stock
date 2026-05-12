@@ -694,8 +694,8 @@ export function ProductList({
                 </p>
               </div>
             ) : null}
-            <div className="flex items-start justify-between gap-3">
-              <div>
+            <div className="grid gap-3">
+              <div className="min-w-0">
                 <h4 className="mt-2 text-lg font-semibold text-stone-950">
                   {selectedProduct.name}
                 </h4>
@@ -703,11 +703,12 @@ export function ProductList({
                   {selectedProduct.creatorOrAuthor || 'Sin creador'}
                 </p>
               </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
+
+              <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
                   variant="secondary"
-                  className="whitespace-nowrap text-xs"
+                  className="text-xs"
                   onClick={() => openStockCorrection(selectedProduct)}
                   disabled={selectedProduct.isActive !== true}
                 >
@@ -716,7 +717,7 @@ export function ProductList({
                 <Button
                   type="button"
                   variant="secondary"
-                  className="whitespace-nowrap text-xs"
+                  className="text-xs"
                   onClick={() =>
                     router.push(
                       `/inventory/${selectedProduct.id}/edit?estado=${statusFilter}`,
@@ -729,7 +730,7 @@ export function ProductList({
                   <Button
                     type="button"
                     variant="secondary"
-                    className="whitespace-nowrap text-xs"
+                    className="text-xs"
                     onClick={async () => {
                       const confirmed = window.confirm(
                         'Archivar este producto lo ocultará del inventario normal y de nuevas ventas, pero conservará su historial.\n\n¿Archivar producto?',
@@ -756,7 +757,7 @@ export function ProductList({
                   <Button
                     type="button"
                     variant="secondary"
-                    className="whitespace-nowrap text-xs"
+                    className="text-xs"
                     onClick={async () => {
                       const confirmed = window.confirm(
                         'Restaurar este producto lo mostrará de nuevo en el inventario normal y en nuevas ventas.\n\n¿Restaurar producto?',

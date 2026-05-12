@@ -94,7 +94,9 @@ export function ProductForm({
               : 'El stock inicial creará el primer movimiento de inventario.'}
           </p>
         </div>
-        <LinkButton href={returnTo}>Volver al listado</LinkButton>
+        <LinkButton href={returnTo} variant="secondary">
+          Volver al listado
+        </LinkButton>
       </div>
 
       {state.message ? (
