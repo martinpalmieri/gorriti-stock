@@ -1,6 +1,5 @@
 export const allowedConditionValues = [
   "new",
-  "used_very_good",
   "used_good",
 ] as const;
 

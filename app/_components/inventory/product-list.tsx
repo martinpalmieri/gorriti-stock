@@ -2,6 +2,7 @@
 
 import {
   useActionState,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -25,14 +26,12 @@ import type { InventoryStatusFilter } from '@/lib/inventory/data';
 
 const conditionLabels: Record<ProductConditionValue, string> = {
   new: 'Nuevo',
-  used_very_good: 'Como nuevo',
   used_good: 'Segunda mano',
 };
 
 const conditionOptions: Array<{ value: ProductConditionValue; label: string }> =
   [
     { value: 'new', label: 'Nuevo' },
-    { value: 'used_very_good', label: 'Como nuevo' },
     { value: 'used_good', label: 'Segunda mano' },
   ];
 
@@ -47,6 +46,8 @@ type ProductListProps = {
   products: Product[];
   loadError: string | null;
   statusFilter: InventoryStatusFilter;
+  deepLinkSelection?: string | null;
+  deepLinkOpenStockCorrection?: boolean;
 };
 
 type StockMovement = {
@@ -325,8 +326,17 @@ export function ProductList({
   products,
   loadError,
   statusFilter,
+  deepLinkSelection,
+  deepLinkOpenStockCorrection = false,
 }: ProductListProps) {
   const router = useRouter();
+  const normalizedDeepLinkSelection = deepLinkSelection?.trim() ?? null;
+  const deepLinkProduct =
+    normalizedDeepLinkSelection === null
+      ? null
+      : (products.find((item) => item.id === normalizedDeepLinkSelection) ?? null);
+  const canOpenDeepLinkStockCorrection =
+    deepLinkOpenStockCorrection && deepLinkProduct?.isActive === true;
   const [stockOverrides, setStockOverrides] = useState<Record<string, number>>(
     {},
   );
@@ -338,13 +348,17 @@ export function ProductList({
   const [stockFilter, setStockFilter] =
     useState<(typeof stockFilters)[number]['value']>('all');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(
-    null,
+    normalizedDeepLinkSelection,
   );
   const [stockCorrectionProductId, setStockCorrectionProductId] = useState<
     string | null
-  >(null);
-  const [stockCorrectionOpen, setStockCorrectionOpen] = useState(false);
-  const [stockCorrectionSession, setStockCorrectionSession] = useState(0);
+  >(canOpenDeepLinkStockCorrection ? normalizedDeepLinkSelection : null);
+  const [stockCorrectionOpen, setStockCorrectionOpen] = useState(
+    canOpenDeepLinkStockCorrection,
+  );
+  const [stockCorrectionSession, setStockCorrectionSession] = useState(
+    canOpenDeepLinkStockCorrection ? 1 : 0,
+  );
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [movementsError, setMovementsError] = useState<string | null>(null);
 
@@ -374,7 +388,7 @@ export function ProductList({
           (product) => product.id === stockCorrectionProductId,
         ) ?? null);
 
-  const fetchMovements = async (productId: string) => {
+  const fetchMovements = useCallback(async (productId: string) => {
     try {
       setMovementsError(null);
       const result = await getProductStockMovements(productId);
@@ -390,18 +404,25 @@ export function ProductList({
       setMovements([]);
       setMovementsError('No se pudieron cargar los movimientos.');
     }
-  };
+  }, []);
 
-  const openStockCorrection = (product: Product) => {
+  const openStockCorrection = useCallback((product: Product) => {
     setStockCorrectionProductId(product.id);
     setStockCorrectionOpen(true);
     setStockCorrectionSession((value) => value + 1);
-  };
+  }, []);
 
-  const handleSelectProductId = (productId: string) => {
+  const handleSelectProductId = useCallback((productId: string) => {
     setSelectedProductId(productId);
     void fetchMovements(productId);
-  };
+  }, [fetchMovements]);
+
+  useEffect(() => {
+    if (!deepLinkSelection && !deepLinkOpenStockCorrection) {
+      return;
+    }
+    router.replace(`/inventory?estado=${statusFilter}`);
+  }, [deepLinkOpenStockCorrection, deepLinkSelection, router, statusFilter]);
 
   const filteredProducts = useMemo(() => {
     return clientProducts.filter((product) => {

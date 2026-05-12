@@ -17,6 +17,20 @@ function toNumber(value: number | string | null) {
   return typeof value === "number" ? value : Number(value);
 }
 
+function normalizeCondition(
+  value: string | null,
+): ProductConditionValue | null {
+  if (value === "new") {
+    return "new";
+  }
+
+  if (value === "used_good" || value === "used_very_good") {
+    return "used_good";
+  }
+
+  return null;
+}
+
 function mapProduct(row: ProductRow): Product {
   return {
     id: row.id,
@@ -29,7 +43,7 @@ function mapProduct(row: ProductRow): Product {
     costPrice: toNumber(row.cost_price),
     currentStock: row.current_stock,
     isActive: row.is_active ?? true,
-    condition: row.condition as ProductConditionValue | null,
+    condition: normalizeCondition(row.condition),
     supplier: row.supplier ?? "",
     barcode: row.barcode ?? "",
     sku: row.sku ?? "",

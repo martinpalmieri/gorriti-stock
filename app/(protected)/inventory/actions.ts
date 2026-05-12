@@ -8,6 +8,7 @@ import {
   createFallbackProduct,
   correctFallbackStock,
   getFallbackCategories,
+  getFallbackProducts,
   getFallbackStockMovements,
   setFallbackProductActive,
   updateFallbackProduct,
@@ -17,7 +18,11 @@ import {
   type Product,
   type ProductConditionValue,
 } from "@/lib/inventory/types";
-import type { ProductFormState } from "./product-form-state";
+import type {
+  DuplicateProductMatch,
+  DuplicateProductMatchStrength,
+  ProductFormState,
+} from "./product-form-state";
 
 type StockMovement = {
   id: string;
@@ -62,8 +67,192 @@ type ProductFormValues = {
   notes: string;
 };
 
+type DuplicateCandidate = {
+  id: string;
+  name: string;
+  creatorOrAuthor: string;
+  brandPublisherLabel: string;
+  categoryName: string;
+  condition: string | null;
+  currentStock: number;
+  price: number;
+  barcode: string;
+  sku: string;
+  isbn: string;
+  isActive: boolean;
+};
+
 function optionalText(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function removeAccents(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizeText(value: string) {
+  return removeAccents(value)
+    .toLocaleLowerCase("es")
+    .trim()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ");
+}
+
+function normalizeIdentifier(value: string) {
+  return removeAccents(value)
+    .toLocaleLowerCase("es")
+    .trim()
+    .replace(/[^\p{L}\p{N}]/gu, "");
+}
+
+function getSignificantWords(value: string) {
+  return normalizeText(value)
+    .split(" ")
+    .map((word) => word.trim())
+    .filter((word) => word.length >= 3);
+}
+
+function firstSignificantWordsMatch(left: string, right: string) {
+  const leftWords = getSignificantWords(left);
+  const rightWords = getSignificantWords(right);
+  if (leftWords.length === 0 || rightWords.length === 0) {
+    return false;
+  }
+
+  const wordsToCheck = Math.min(2, leftWords.length, rightWords.length);
+  for (let index = 0; index < wordsToCheck; index += 1) {
+    if (leftWords[index] !== rightWords[index]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function buildDuplicateMatch(input: {
+  values: ProductFormValues;
+  candidate: DuplicateCandidate;
+}): DuplicateProductMatch | null {
+  const { values, candidate } = input;
+  const reasons: string[] = [];
+  let strength: DuplicateProductMatchStrength = "possible";
+
+  const inputIsbn = normalizeIdentifier(values.isbn);
+  const inputBarcode = normalizeIdentifier(values.barcode);
+  const inputSku = normalizeIdentifier(values.sku);
+  const candidateIsbn = normalizeIdentifier(candidate.isbn);
+  const candidateBarcode = normalizeIdentifier(candidate.barcode);
+  const candidateSku = normalizeIdentifier(candidate.sku);
+
+  if (inputIsbn && candidateIsbn && inputIsbn === candidateIsbn) {
+    reasons.push("ISBN idéntico");
+    strength = "strong";
+  }
+
+  if (inputBarcode && candidateBarcode && inputBarcode === candidateBarcode) {
+    reasons.push("Código de barras idéntico");
+    strength = "strong";
+  }
+
+  if (inputSku && candidateSku && inputSku === candidateSku) {
+    reasons.push("SKU idéntico");
+    strength = "strong";
+  }
+
+  const inputName = normalizeText(values.name);
+  const candidateName = normalizeText(candidate.name);
+  const namesEqual = inputName.length > 0 && inputName === candidateName;
+  const namesInclude =
+    inputName.length > 0 &&
+    candidateName.length > 0 &&
+    (inputName.includes(candidateName) || candidateName.includes(inputName));
+  const namesFirstWordsMatch = firstSignificantWordsMatch(values.name, candidate.name);
+  const nameLooksSimilar = namesEqual || namesInclude || namesFirstWordsMatch;
+
+  if (nameLooksSimilar) {
+    reasons.push("Nombre o título parecido");
+  }
+
+  const inputCreator = normalizeText(values.creatorOrAuthor);
+  const candidateCreator = normalizeText(candidate.creatorOrAuthor);
+  if (inputCreator && candidateCreator && inputCreator === candidateCreator) {
+    reasons.push("Mismo creador o autor");
+  }
+
+  const inputBrand = normalizeText(values.brandPublisherLabel);
+  const candidateBrand = normalizeText(candidate.brandPublisherLabel);
+  if (inputBrand && candidateBrand && inputBrand === candidateBrand) {
+    reasons.push("Misma editorial, marca o sello");
+  }
+
+  const shouldIncludeAsPossible =
+    nameLooksSimilar ||
+    (inputCreator && candidateCreator && inputCreator === candidateCreator && namesInclude) ||
+    (inputBrand && candidateBrand && inputBrand === candidateBrand && namesInclude);
+
+  if (strength !== "strong" && !shouldIncludeAsPossible) {
+    return null;
+  }
+
+  if (reasons.length === 0) {
+    return null;
+  }
+
+  return {
+    productId: candidate.id,
+    strength,
+    reasons,
+    isArchived: candidate.isActive !== true,
+    name: candidate.name,
+    creatorOrAuthor: candidate.creatorOrAuthor,
+    brandPublisherLabel: candidate.brandPublisherLabel,
+    categoryName: candidate.categoryName,
+    condition: candidate.condition,
+    currentStock: candidate.currentStock,
+    price: candidate.price,
+    barcode: candidate.barcode,
+    sku: candidate.sku,
+    isbn: candidate.isbn,
+  };
+}
+
+function sortDuplicateMatches(matches: DuplicateProductMatch[]) {
+  return matches.sort((left, right) => {
+    if (left.strength !== right.strength) {
+      return left.strength === "strong" ? -1 : 1;
+    }
+
+    if (left.isArchived !== right.isArchived) {
+      return left.isArchived ? 1 : -1;
+    }
+
+    return left.name.localeCompare(right.name, "es");
+  });
+}
+
+function collectDuplicateMatches(
+  values: ProductFormValues,
+  candidates: DuplicateCandidate[],
+) {
+  const matches = candidates
+    .map((candidate) => buildDuplicateMatch({ values, candidate }))
+    .filter((match): match is DuplicateProductMatch => match !== null)
+    .filter((match) => {
+      if (!match.isArchived) {
+        return true;
+      }
+
+      return match.strength === "strong";
+    });
+
+  const uniqueByProduct = new Map<string, DuplicateProductMatch>();
+  for (const match of sortDuplicateMatches(matches)) {
+    if (!uniqueByProduct.has(match.productId)) {
+      uniqueByProduct.set(match.productId, match);
+    }
+  }
+
+  return Array.from(uniqueByProduct.values());
 }
 
 function optionalNumber(value: FormDataEntryValue | null) {
@@ -73,6 +262,14 @@ function optionalNumber(value: FormDataEntryValue | null) {
 
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : Number.NaN;
+}
+
+function toNumber(value: number | string | null) {
+  if (value === null) {
+    return null;
+  }
+
+  return typeof value === "number" ? value : Number(value);
 }
 
 function requiredText(value: FormDataEntryValue | null) {
@@ -243,6 +440,7 @@ export async function createProduct(
   _previousState: ProductFormState,
   formData: FormData,
 ): Promise<ProductFormState> {
+  const duplicateConfirmed = optionalText(formData.get("duplicateConfirmed")) === "1";
   const parsed = parseProductForm(formData, "create");
 
   if (!parsed.values) {
@@ -250,21 +448,114 @@ export async function createProduct(
       status: "error",
       message: "Revisa los campos marcados.",
       fieldErrors: parsed.fieldErrors,
+      duplicateWarning: null,
     };
   }
 
+  const values = parsed.values;
+
+  if (!duplicateConfirmed) {
+    if (!shouldQuerySupabaseTables()) {
+      const duplicateMatches = collectDuplicateMatches(
+        values,
+        getFallbackProducts().map((product) => ({
+          id: product.id,
+          name: product.name,
+          creatorOrAuthor: product.creatorOrAuthor,
+          brandPublisherLabel: product.brandPublisherLabel,
+          categoryName: product.categoryName,
+          condition: product.condition,
+          currentStock: product.currentStock,
+          price: product.price,
+          barcode: product.barcode,
+          sku: product.sku,
+          isbn: product.isbn,
+          isActive: product.isActive === true,
+        })),
+      );
+
+      if (duplicateMatches.length > 0) {
+        return {
+          status: "error",
+          message: "Ya existe un producto parecido en el inventario. Revisá antes de crear uno nuevo.",
+          fieldErrors: {},
+          duplicateWarning: { matches: duplicateMatches },
+        };
+      }
+    } else {
+      type DuplicateProductRow = {
+        id: string;
+        name: string;
+        creator_or_author: string | null;
+        brand_publisher_label: string | null;
+        condition: string | null;
+        current_stock: number;
+        price: number | string | null;
+        barcode: string | null;
+        sku: string | null;
+        isbn: string | null;
+        is_active: boolean | null;
+        categories: { name: string } | null;
+      };
+
+      const supabase = (await createClient() as unknown) as SupabaseTableClient;
+      const { data: duplicateRows, error: duplicateError } = await supabase
+        .from<DuplicateProductRow>("products")
+        .select(
+          "id, name, creator_or_author, brand_publisher_label, condition, current_stock, price, barcode, sku, isbn, is_active, categories:category_id(name)",
+        )
+        .order("updated_at", { ascending: false });
+
+      if (duplicateError) {
+        return {
+          status: "error",
+          message: duplicateError.message ?? "No se pudo verificar duplicados.",
+          fieldErrors: {},
+          duplicateWarning: null,
+        };
+      }
+
+      const duplicateMatches = collectDuplicateMatches(
+        values,
+        (duplicateRows ?? []).map((row) => ({
+          id: row.id,
+          name: row.name,
+          creatorOrAuthor: row.creator_or_author ?? "",
+          brandPublisherLabel: row.brand_publisher_label ?? "",
+          categoryName: row.categories?.name ?? "Sin categoría",
+          condition: row.condition,
+          currentStock: row.current_stock,
+          price: toNumber(row.price) ?? 0,
+          barcode: row.barcode ?? "",
+          sku: row.sku ?? "",
+          isbn: row.isbn ?? "",
+          isActive: row.is_active === true,
+        })),
+      );
+
+      if (duplicateMatches.length > 0) {
+        return {
+          status: "error",
+          message: "Ya existe un producto parecido en el inventario. Revisá antes de crear uno nuevo.",
+          fieldErrors: {},
+          duplicateWarning: { matches: duplicateMatches },
+        };
+      }
+    }
+  }
+
   if (!shouldQuerySupabaseTables()) {
-    createFallbackProduct(fallbackProduct(parsed.values), parsed.values.initialStock);
+    createFallbackProduct(fallbackProduct(values), values.initialStock);
     revalidatePath("/inventory");
 
     return {
       status: "success",
       message: "Producto creado",
       fieldErrors: {},
+      duplicateWarning: null,
     };
   }
 
-  const values = parsed.values;
   const supabase = (await createClient() as unknown) as SupabaseTableClient;
   const { data: product, error: productError } = await supabase
     .from<{ id: string }>("products")
@@ -291,6 +582,7 @@ export async function createProduct(
       status: "error",
       message: productError?.message ?? "No se pudo crear el producto.",
       fieldErrors: {},
+      duplicateWarning: null,
     };
   }
 
@@ -310,6 +602,7 @@ export async function createProduct(
       status: "error",
       message: stockError.message,
       fieldErrors: {},
+      duplicateWarning: null,
     };
   }
 
@@ -319,6 +612,7 @@ export async function createProduct(
     status: "success",
     message: "Producto creado",
     fieldErrors: {},
+    duplicateWarning: null,
   };
 }
 
@@ -334,6 +628,7 @@ export async function updateProduct(
       status: "error",
       message: "No se encontró el producto.",
       fieldErrors: {},
+      duplicateWarning: null,
     };
   }
 
@@ -344,6 +639,7 @@ export async function updateProduct(
       status: "error",
       message: "Revisa los campos marcados.",
       fieldErrors: parsed.fieldErrors,
+      duplicateWarning: null,
     };
   }
 
@@ -355,6 +651,7 @@ export async function updateProduct(
         status: "error",
         message: "No se encontró el producto.",
         fieldErrors: {},
+        duplicateWarning: null,
       };
     }
 
@@ -364,6 +661,7 @@ export async function updateProduct(
       status: "success",
       message: "Producto actualizado",
       fieldErrors: {},
+      duplicateWarning: null,
     };
   }
 
@@ -392,6 +690,7 @@ export async function updateProduct(
       status: "error",
       message: error.message,
       fieldErrors: {},
+      duplicateWarning: null,
     };
   }
 
@@ -401,6 +700,7 @@ export async function updateProduct(
     status: "success",
     message: "Producto actualizado",
     fieldErrors: {},
+    duplicateWarning: null,
   };
 }
 

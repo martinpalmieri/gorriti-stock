@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, type ReactNode } from 'react';
+import { useActionState, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import type {
   Category,
@@ -14,15 +14,26 @@ import {
 import { initialProductFormState } from '@/app/(protected)/inventory/product-form-state';
 import { Button, LinkButton } from '../ui/button';
 
+const conditionLabels: Record<ProductConditionValue, string> = {
+  new: 'Nuevo',
+  used_good: 'Segunda mano',
+};
+
 const conditionOptions: Array<{ value: ProductConditionValue; label: string }> =
   [
     { value: 'new', label: 'Nuevo' },
-    { value: 'used_very_good', label: 'Como nuevo' },
     { value: 'used_good', label: 'Segunda mano' },
   ];
 
 function numberInputValue(value: number | null) {
   return value === null ? '' : String(value);
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('es-ES', {
+    style: 'currency',
+    currency: 'EUR',
+  }).format(value);
 }
 
 function Field({
@@ -73,7 +84,37 @@ export function ProductForm({
     action,
     initialProductFormState,
   );
+  const [dismissedWarningKey, setDismissedWarningKey] = useState<string | null>(
+    null,
+  );
   const fieldErrors = state.fieldErrors ?? {};
+  const duplicateWarning = state.duplicateWarning;
+  const duplicateMatches = useMemo(
+    () => duplicateWarning?.matches ?? [],
+    [duplicateWarning],
+  );
+  const duplicateWarningKey = useMemo(
+    () =>
+      duplicateMatches
+        .map((match) => `${match.productId}:${match.strength}:${match.reasons.join(',')}`)
+        .join('|'),
+    [duplicateMatches],
+  );
+  const shouldShowDuplicateWarning = Boolean(
+    !isEditing &&
+      duplicateMatches.length &&
+      dismissedWarningKey !== duplicateWarningKey,
+  );
+
+  const returnStatus = useMemo(() => {
+    if (returnTo.includes('estado=archived')) {
+      return 'archived';
+    }
+    if (returnTo.includes('estado=all')) {
+      return 'all';
+    }
+    return 'active';
+  }, [returnTo]);
 
   useEffect(() => {
     if (state.status === 'success') {
@@ -104,12 +145,104 @@ export function ProductForm({
           className={`mt-4 rounded-md px-3 py-2 text-sm font-medium ${
             state.status === 'success'
               ? 'bg-emerald-100 text-emerald-900'
+              : shouldShowDuplicateWarning
+                ? 'bg-amber-100 text-amber-900'
               : 'bg-red-100 text-red-900'
           }`}
           role="status"
         >
           {state.message}
         </p>
+      ) : null}
+
+      {shouldShowDuplicateWarning ? (
+        <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4">
+          <p className="text-sm font-semibold uppercase tracking-wide text-amber-800">
+            Posible producto duplicado
+          </p>
+          <p className="mt-1 text-sm text-amber-900">
+            Ya existe un producto parecido en el inventario.
+          </p>
+          <p className="text-sm text-amber-900">
+            Revisá antes de crear uno nuevo.
+          </p>
+
+          <div className="mt-4 space-y-3">
+            {duplicateMatches.map((match) => (
+              <article
+                key={match.productId}
+                className="rounded-md border border-amber-200 bg-white p-3"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
+                      match.strength === 'strong'
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {match.strength === 'strong'
+                      ? 'Coincidencia fuerte'
+                      : 'Posible duplicado'}
+                  </span>
+                  {match.isArchived ? (
+                    <span className="rounded-md bg-stone-100 px-2 py-0.5 text-xs font-semibold text-stone-700">
+                      Archivado
+                    </span>
+                  ) : null}
+                </div>
+
+                <p className="mt-2 text-sm font-semibold text-stone-950">
+                  {match.name}
+                </p>
+                <p className="text-sm text-stone-700">
+                  {match.creatorOrAuthor || 'Sin creador'} ·{' '}
+                  {match.brandPublisherLabel || 'Sin editorial/marca/sello'}
+                </p>
+                <p className="text-xs text-stone-600">
+                  {match.categoryName} ·{' '}
+                  {match.condition
+                    ? (conditionLabels[match.condition as ProductConditionValue] ??
+                      match.condition)
+                    : 'Sin estado'}
+                </p>
+                <p className="mt-2 text-xs text-stone-700">
+                  Stock: {match.currentStock} · Precio: {formatCurrency(match.price)}
+                </p>
+                <p className="mt-1 text-xs text-stone-700">
+                  ISBN: {match.isbn || '—'} · Código: {match.barcode || '—'} · SKU:{' '}
+                  {match.sku || '—'}
+                </p>
+                <p className="mt-1 text-xs text-stone-600">
+                  {match.reasons.join(' · ')}
+                </p>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <LinkButton
+                    href={`/inventory/${match.productId}/edit?estado=${returnStatus}`}
+                    variant="secondary"
+                    className="text-xs"
+                  >
+                    Editar producto existente
+                  </LinkButton>
+                  {match.isArchived ? (
+                    <span className="inline-flex items-center rounded-md border border-stone-200 px-3 py-1 text-xs font-semibold text-stone-500">
+                      Corregir stock del existente
+                    </span>
+                  ) : (
+                    <LinkButton
+                      href={`/inventory?estado=${returnStatus}&seleccion=${match.productId}&corregirStock=1`}
+                      variant="secondary"
+                      className="text-xs"
+                    >
+                      Corregir stock del existente
+                    </LinkButton>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
       ) : null}
 
       <form action={formAction} className="mt-5 grid gap-4 lg:grid-cols-2">
@@ -262,6 +395,27 @@ export function ProductForm({
         </Field>
 
         <div className="flex flex-col gap-3 lg:col-span-2 sm:flex-row sm:justify-end">
+          {shouldShowDuplicateWarning ? (
+            <Button
+              type="submit"
+              name="duplicateConfirmed"
+              value="1"
+              variant="secondary"
+              disabled={pending}
+            >
+              Crear de todos modos
+            </Button>
+          ) : null}
+          {shouldShowDuplicateWarning ? (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setDismissedWarningKey(duplicateWarningKey)}
+              disabled={pending}
+            >
+              Cancelar
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="secondary"
