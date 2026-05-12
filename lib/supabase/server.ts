@@ -2,6 +2,8 @@ import 'server-only'
 
 import { cookies } from 'next/headers'
 
+import { createServerClient } from '@supabase/ssr'
+
 import { hasSupabaseUrlAndAnonKey } from '@/lib/supabase/public-env'
 
 type CookieToSet = {
@@ -10,34 +12,7 @@ type CookieToSet = {
   options?: Parameters<Awaited<ReturnType<typeof cookies>>['set']>[2]
 }
 
-type SupabaseSsrModule = {
-  createServerClient: (
-    url: string,
-    anonKey: string,
-    options: {
-      cookies: {
-        getAll: () => ReturnType<Awaited<ReturnType<typeof cookies>>['getAll']>
-        setAll: (cookiesToSet: CookieToSet[]) => void
-      }
-    },
-  ) => {
-    auth: {
-      getUser: () => Promise<{ data: { user: { email?: string } | null } }>
-      signInWithPassword: (credentials: {
-        email: string
-        password: string
-      }) => Promise<{ error: Error | null }>
-      signOut: () => Promise<{ error: Error | null }>
-    }
-  }
-}
-
 const mockAuthCookie = 'gorriti_mock_auth'
-
-const loadModule = new Function(
-  'specifier',
-  'return import(specifier)',
-) as (specifier: string) => Promise<SupabaseSsrModule>
 
 export async function createClient() {
   const cookieStore = await cookies()
@@ -88,8 +63,6 @@ export async function createClient() {
       },
     }
   }
-
-  const { createServerClient } = await loadModule('@supabase/ssr')
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
