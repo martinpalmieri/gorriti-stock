@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { shouldQuerySupabaseTables } from "@/lib/supabase/should-query-supabase-tables";
 import { categorySlugFromName, isValidCategorySlug } from "@/lib/categories/slug";
 import type { SupabaseTableClient } from "@/lib/inventory/supabase-types";
 
@@ -10,14 +11,6 @@ export type CategoryFormState = {
   message: string | null;
   fieldErrors: Partial<Record<"name" | "slug", string>>;
 };
-
-function hasSupabasePublicEnv() {
-  return Boolean(
-    process.env.PLAYWRIGHT_BYPASS_AUTH !== "1" &&
-      process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
-}
 
 function requiredText(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
@@ -96,7 +89,7 @@ export async function createCategory(
     return { status: "error", message: "Revisa los campos marcados.", fieldErrors };
   }
 
-  if (!hasSupabasePublicEnv()) {
+  if (!shouldQuerySupabaseTables()) {
     return {
       status: "error",
       message: "No se pudo guardar la categoría",
@@ -172,7 +165,7 @@ export async function updateCategory(
     return { status: "error", message: "Revisa los campos marcados.", fieldErrors };
   }
 
-  if (!hasSupabasePublicEnv()) {
+  if (!shouldQuerySupabaseTables()) {
     return {
       status: "error",
       message: "No se pudo guardar la categoría",

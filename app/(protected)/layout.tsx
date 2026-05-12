@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { AppShell } from "../_components/app-shell";
+import { isPlaywrightAuthBypassEnabled } from "@/lib/playwright-auth-bypass";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function ProtectedLayout({
@@ -8,7 +9,7 @@ export default async function ProtectedLayout({
 }: Readonly<{
   children: ReactNode;
 }>) {
-  if (process.env.PLAYWRIGHT_BYPASS_AUTH === "1") {
+  if (isPlaywrightAuthBypassEnabled()) {
     return <AppShell userEmail="playwright@gorriti.local">{children}</AppShell>;
   }
 

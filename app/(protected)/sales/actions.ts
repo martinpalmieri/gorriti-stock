@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { shouldQuerySupabaseTables } from "@/lib/supabase/should-query-supabase-tables";
 import type { SupabaseTableClient } from "@/lib/inventory/supabase-types";
 
 type PaymentMethod = string | null;
@@ -33,13 +34,6 @@ export type SaleDetail = {
   }>;
 };
 
-function hasSupabasePublicEnv() {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
-}
-
 export async function getSaleDetail(
   saleId: string,
 ): Promise<
@@ -51,7 +45,7 @@ export async function getSaleDetail(
     return { status: "error", message: "No se encontró la venta." };
   }
 
-  if (!hasSupabasePublicEnv()) {
+  if (!shouldQuerySupabaseTables()) {
     return { status: "error", message: "Supabase no está configurado." };
   }
 

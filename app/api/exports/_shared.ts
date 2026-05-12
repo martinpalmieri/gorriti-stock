@@ -1,3 +1,4 @@
+import { isPlaywrightAuthBypassEnabled } from "@/lib/playwright-auth-bypass";
 import { createClient } from "@/lib/supabase/server";
 
 export function isoDateForFilename(date = new Date()) {
@@ -21,7 +22,7 @@ export function csvDownloadResponse(csv: string, filename: string) {
 }
 
 export async function requireAuthenticatedUser() {
-  if (process.env.PLAYWRIGHT_BYPASS_AUTH === "1") {
+  if (isPlaywrightAuthBypassEnabled()) {
     return { ok: true as const };
   }
 

@@ -30,6 +30,8 @@ npm run build
 
 Only run e2e when explicitly needed.
 
+Playwright may set `PLAYWRIGHT_BYPASS_AUTH=1` in development; production never treats it as enabled (`lib/playwright-auth-bypass.ts`). E2E flows that call Supabase `signUp` require `E2E_ALLOW_SUPABASE_SIGNUP=1` plus `E2E_PASSWORD` and `E2E_EMAIL` (no repo-default passwords); use only disposable Supabase projects, not real production.
+
 ## Do not commit
 
 - `.env.local`

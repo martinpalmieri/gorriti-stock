@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { shouldQuerySupabaseTables } from "@/lib/supabase/should-query-supabase-tables";
 import type { Database } from "@/types/database.types";
 import type { SupabaseTableClient } from "@/lib/inventory/supabase-types";
 import type { Category, Product, ProductConditionValue } from "./types";
@@ -7,14 +8,6 @@ import { getFallbackCategories, getFallbackProducts } from "./mock-store";
 type ProductRow = Database["public"]["Tables"]["products"]["Row"] & {
   categories: Pick<Database["public"]["Tables"]["categories"]["Row"], "name"> | null;
 };
-
-function hasSupabasePublicEnv() {
-  return Boolean(
-    process.env.PLAYWRIGHT_BYPASS_AUTH !== "1" &&
-      process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
-}
 
 function toNumber(value: number | string | null) {
   if (value === null) {
@@ -57,7 +50,7 @@ export async function getInventoryData(input?: {
   error: string | null;
 }> {
   const status = input?.status ?? "active";
-  if (!hasSupabasePublicEnv()) {
+  if (!shouldQuerySupabaseTables()) {
     const allFallbackProducts = getFallbackProducts();
     const filteredFallbackProducts =
       status === "all"

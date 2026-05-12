@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { shouldQuerySupabaseTables } from "@/lib/supabase/should-query-supabase-tables";
 import type { SupabaseTableClient } from "@/lib/inventory/supabase-types";
 
 type PaymentMethod = "manual_sumup" | "cash";
@@ -101,14 +102,6 @@ const mockedProducts: SaleProduct[] = [
   },
 ];
 
-function hasSupabasePublicEnv() {
-  return Boolean(
-    process.env.PLAYWRIGHT_BYPASS_AUTH !== "1" &&
-      process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
-}
-
 function priceToCents(value: unknown) {
   if (typeof value === "number") {
     return Math.round(value * 100);
@@ -129,7 +122,7 @@ function assertPaymentMethod(value: unknown): value is PaymentMethod {
 }
 
 export async function listActiveProductsForSale(): Promise<ListProductsResult> {
-  if (!hasSupabasePublicEnv()) {
+  if (!shouldQuerySupabaseTables()) {
     return { status: "success", products: mockedProducts, source: "mock" };
   }
 
@@ -197,7 +190,7 @@ export async function confirmSale(input: ConfirmSaleInput): Promise<ConfirmSaleR
     }
   }
 
-  if (!hasSupabasePublicEnv()) {
+  if (!shouldQuerySupabaseTables()) {
     const byId = new Map(mockedProducts.map((product) => [product.id, product]));
     let totalCents = 0;
     let itemCount = 0;

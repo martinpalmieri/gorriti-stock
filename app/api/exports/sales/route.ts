@@ -6,6 +6,7 @@ import {
   isoDateForFilename,
   requireAuthenticatedUser,
 } from "../_shared";
+import { shouldQuerySupabaseTables } from "@/lib/supabase/should-query-supabase-tables";
 
 export async function GET() {
   const auth = await requireAuthenticatedUser();
@@ -23,11 +24,7 @@ export async function GET() {
 
   const filename = `gorriti-sales-${isoDateForFilename()}.csv`;
 
-  const hasSupabasePublicEnv = Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
-
-  if (!hasSupabasePublicEnv) {
+  if (!shouldQuerySupabaseTables()) {
     return csvDownloadResponse(toCsv(columns, []), filename);
   }
 

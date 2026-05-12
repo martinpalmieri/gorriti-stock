@@ -9,21 +9,43 @@ fs.mkdirSync(screenshotDir, { recursive: true });
 
 const bypassAuth = true;
 
-const e2eEmail = process.env.E2E_EMAIL ?? "tienda@gorriti.local";
-const e2ePassword = process.env.E2E_PASSWORD ?? "gorriti-demo";
-
 let didEnsureUser = false;
+
+function requireE2ECredentialsForRealLogin(): { email: string; password: string } {
+  const email = process.env.E2E_EMAIL?.trim();
+  const password = process.env.E2E_PASSWORD;
+  if (!email || !password) {
+    throw new Error(
+      "E2E login sin bypass requiere E2E_EMAIL y E2E_PASSWORD en el entorno (sin valores por defecto en el repo).",
+    );
+  }
+  return { email, password };
+}
 
 async function ensureE2EUser() {
   if (didEnsureUser) return;
   didEnsureUser = true;
 
+  if (process.env.E2E_ALLOW_SUPABASE_SIGNUP !== "1") return;
+
+  const email = process.env.E2E_EMAIL?.trim();
+  const password = process.env.E2E_PASSWORD;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) return;
+
+  if (!email || !password || !url || !anonKey) {
+    const missing: string[] = [];
+    if (!email) missing.push("E2E_EMAIL");
+    if (!password) missing.push("E2E_PASSWORD");
+    if (!url) missing.push("NEXT_PUBLIC_SUPABASE_URL");
+    if (!anonKey) missing.push("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+    throw new Error(
+      `E2E_ALLOW_SUPABASE_SIGNUP=1 requiere variables explícitas (sin contraseñas por defecto): ${missing.join(", ")}.`,
+    );
+  }
 
   const supabase = createSupabaseClient(url, anonKey);
-  await supabase.auth.signUp({ email: e2eEmail, password: e2ePassword });
+  await supabase.auth.signUp({ email, password });
 }
 
 async function loginForE2E(page: import("@playwright/test").Page) {
@@ -35,10 +57,11 @@ async function loginForE2E(page: import("@playwright/test").Page) {
     return;
   }
 
+  const { email, password } = requireE2ECredentialsForRealLogin();
   await ensureE2EUser();
   await page.goto("/login");
-  await page.getByLabel("Email").fill(e2eEmail);
-  await page.getByLabel("Contraseña").fill(e2ePassword);
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Contraseña").fill(password);
   await page.getByRole("button", { name: "Iniciar sesión" }).click();
   await expect(
     page.getByRole("heading", { name: "Resumen de la tienda" }),

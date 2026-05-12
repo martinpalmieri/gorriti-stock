@@ -1,23 +1,17 @@
-import { SalesHeader } from "../../_components/sales/sales-header";
-import { SalesList } from "../../_components/sales/sales-list";
-import { createClient } from "@/lib/supabase/server";
-import type { SupabaseTableClient } from "@/lib/inventory/supabase-types";
-import type { SaleListItem } from "./actions";
-import { getSaleDetail } from "./actions";
-
-function hasSupabasePublicEnv() {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
-}
+import { SalesList } from '../../_components/sales/sales-list';
+import { createClient } from '@/lib/supabase/server';
+import { shouldQuerySupabaseTables } from '@/lib/supabase/should-query-supabase-tables';
+import type { SupabaseTableClient } from '@/lib/inventory/supabase-types';
+import type { SaleListItem } from './actions';
+import { getSaleDetail } from './actions';
 
 export default async function SalesPage() {
   let sales: SaleListItem[] = [];
   let loadError: string | null = null;
-  let initialSaleDetail: Awaited<ReturnType<typeof getSaleDetail>> | null = null;
+  let initialSaleDetail: Awaited<ReturnType<typeof getSaleDetail>> | null =
+    null;
 
-  if (hasSupabasePublicEnv()) {
+  if (shouldQuerySupabaseTables()) {
     type SaleRow = {
       id: string;
       created_at: string | null;
@@ -27,12 +21,14 @@ export default async function SalesPage() {
       sale_items?: Array<{ quantity: number }>;
     };
 
-    const supabase = (await createClient() as unknown) as SupabaseTableClient;
+    const supabase = (await createClient()) as unknown as SupabaseTableClient;
     const { data, error } = await supabase
-      .from<SaleRow>("sales")
-      .select("id, created_at, total_amount, payment_method, status, sale_items(quantity)")
-      .order("created_at", { ascending: false })
-      .limit(50)
+      .from<SaleRow>('sales')
+      .select(
+        'id, created_at, total_amount, payment_method, status, sale_items(quantity)',
+      )
+      .order('created_at', { ascending: false })
+      .limit(50);
 
     if (error) {
       loadError = error.message;
@@ -44,13 +40,14 @@ export default async function SalesPage() {
         paymentMethod: row.payment_method ?? null,
         status: row.status,
         itemCount: (row.sale_items ?? []).reduce(
-          (total: number, item: { quantity: number }) => total + (item.quantity ?? 0),
+          (total: number, item: { quantity: number }) =>
+            total + (item.quantity ?? 0),
           0,
         ),
       }));
     }
   } else {
-    loadError = "Supabase no está configurado.";
+    loadError = 'Supabase no está configurado.';
   }
 
   if (!loadError && sales[0]?.id) {
@@ -59,11 +56,14 @@ export default async function SalesPage() {
 
   return (
     <div className="space-y-6">
-      <SalesHeader />
       <SalesList
         sales={sales}
         loadError={loadError}
-        initialSaleDetail={initialSaleDetail?.status === "success" ? initialSaleDetail.sale : null}
+        initialSaleDetail={
+          initialSaleDetail?.status === 'success'
+            ? initialSaleDetail.sale
+            : null
+        }
       />
     </div>
   );

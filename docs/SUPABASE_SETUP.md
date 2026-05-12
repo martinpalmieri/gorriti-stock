@@ -11,7 +11,7 @@ This project uses Supabase for:
 
 ## Environment variables
 
-Create `.env.local` in the repository root:
+Create `.env` in the repository root (this repo uses `.env`, but `.env.local` also works with Next.js):
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
@@ -21,7 +21,8 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 Rules:
 
-- `.env.local` is local-only and must not be committed.
+- Production builds (`npm run build` with `NODE_ENV=production`) must define `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in the environment (CI, Vercel, etc.). If they are missing, the server Supabase client no longer falls back to cookie mock auth and throws a clear error (intentional fail closed).
+- `.env` / `.env.local` are local-only and must not be committed.
 - Keep `.env.example` committed with empty placeholders only.
 - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are safe for browser Supabase clients.
 - `SUPABASE_SERVICE_ROLE_KEY` is server-only and must never be imported or exposed in client/browser code.

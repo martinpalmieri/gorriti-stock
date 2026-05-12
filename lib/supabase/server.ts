@@ -2,6 +2,8 @@ import 'server-only'
 
 import { cookies } from 'next/headers'
 
+import { hasSupabaseUrlAndAnonKey } from '@/lib/supabase/public-env'
+
 type CookieToSet = {
   name: string
   value: string
@@ -37,17 +39,16 @@ const loadModule = new Function(
   'return import(specifier)',
 ) as (specifier: string) => Promise<SupabaseSsrModule>
 
-function hasSupabasePublicEnv() {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  )
-}
-
 export async function createClient() {
   const cookieStore = await cookies()
 
-  if (!hasSupabasePublicEnv()) {
+  if (!hasSupabaseUrlAndAnonKey()) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "Missing Supabase configuration: set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      );
+    }
+
     return {
       auth: {
         async getUser() {

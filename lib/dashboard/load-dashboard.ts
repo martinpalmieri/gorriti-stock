@@ -1,6 +1,8 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { hasSupabaseUrlAndAnonKey } from "@/lib/supabase/public-env";
+import { shouldQuerySupabaseTables } from "@/lib/supabase/should-query-supabase-tables";
 import type { SupabaseTableClient } from "@/lib/inventory/supabase-types";
 
 export type DashboardLatestSale = {
@@ -24,6 +26,8 @@ export type DashboardData =
   | {
       ok: true;
       loadError: null;
+      /** Aviso no bloqueante (p. ej. falta `.env.local` con vars públicas de Supabase). */
+      dashboardSetupHint: string | null;
       todaySalesCount: number;
       todayRevenueTotal: number;
       productsInStock: number;
@@ -34,6 +38,7 @@ export type DashboardData =
   | {
       ok: false;
       loadError: string;
+      dashboardSetupHint: null;
       todaySalesCount: number;
       todayRevenueTotal: number;
       productsInStock: number;
@@ -41,13 +46,6 @@ export type DashboardData =
       latestSales: DashboardLatestSale[];
       latestMovements: DashboardMovement[];
     };
-
-function hasSupabasePublicEnv() {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
-}
 
 /**
  * Límites del día calendario en UTC (mismo reloj que suele usar el servidor en producción).
@@ -87,7 +85,7 @@ function formatQuantityChange(value: number): string {
 type CountResult = { count: number | null; error: { message: string } | null };
 
 export async function loadDashboardData(): Promise<DashboardData> {
-  const empty: Omit<DashboardData, "ok" | "loadError"> = {
+  const empty: Omit<DashboardData, "ok" | "loadError" | "dashboardSetupHint"> = {
     todaySalesCount: 0,
     todayRevenueTotal: 0,
     productsInStock: 0,
@@ -96,8 +94,16 @@ export async function loadDashboardData(): Promise<DashboardData> {
     latestMovements: [],
   };
 
-  if (!hasSupabasePublicEnv()) {
-    return { ok: false, loadError: "Supabase no está configurado.", ...empty };
+  if (!shouldQuerySupabaseTables()) {
+    const dashboardSetupHint = !hasSupabaseUrlAndAnonKey()
+      ? "Para cargar ventas y stock reales, definí NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY en .env.local (reiniciá el servidor tras guardar)."
+      : null;
+    return {
+      ok: true,
+      loadError: null,
+      dashboardSetupHint,
+      ...empty,
+    };
   }
 
   const supabase = (await createClient()) as unknown as SupabaseTableClient;
@@ -171,6 +177,7 @@ type MovementRow = {
     return {
       ok: false,
       loadError: errors[0]!.message,
+      dashboardSetupHint: null,
       ...empty,
     };
   }
@@ -209,6 +216,7 @@ type MovementRow = {
   return {
     ok: true,
     loadError: null,
+    dashboardSetupHint: null,
     todaySalesCount,
     todayRevenueTotal,
     productsInStock: inStockCounted.count ?? 0,

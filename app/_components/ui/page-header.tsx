@@ -1,11 +1,11 @@
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react';
 
 export function PageHeader({
   eyebrow,
   title,
   description,
   actions,
-  className = "",
+  className = '',
 }: {
   eyebrow?: string;
   title: string;
@@ -15,12 +15,9 @@ export function PageHeader({
 }) {
   return (
     <header
-      className={[
-        "rounded-lg border border-stone-200 bg-white p-4",
-        className,
-      ]
+      className={['rounded-lg border border-stone-200 bg-white p-4', className]
         .filter(Boolean)
-        .join(" ")}
+        .join(' ')}
     >
       {eyebrow ? (
         <p className="text-xs font-medium text-amber-700">{eyebrow}</p>
@@ -39,4 +36,3 @@ export function PageHeader({
     </header>
   );
 }
-

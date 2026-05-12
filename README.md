@@ -98,6 +98,17 @@ Only run e2e when needed:
 npm run e2e
 ```
 
+The Playwright dev command sets `PLAYWRIGHT_BYPASS_AUTH=1` for local development only; when `NODE_ENV` is `production`, the app ignores that flag.
+
+By default, tests do not call Supabase `signUp`. To opt in to creating a throwaway test user against a Supabase project (use a dedicated disposable project, never a real production tenant), set:
+
+- `E2E_ALLOW_SUPABASE_SIGNUP=1`
+- `E2E_EMAIL` (required when signup is enabled)
+- `E2E_PASSWORD` (required; no repository default)
+- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+If signup is enabled and any required variable is missing, tests fail early with a message listing what is required.
+
 Do not commit generated Playwright artifacts.
 
 ## Supabase

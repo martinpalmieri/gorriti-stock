@@ -41,6 +41,8 @@ npm run build
 
 Run e2e only when the task explicitly changes tested flows or asks for it.
 
+Supabase-backed signup from E2E is gated behind `E2E_ALLOW_SUPABASE_SIGNUP=1` and requires `E2E_EMAIL`, `E2E_PASSWORD`, and the public Supabase env vars, with no unsafe repo defaults.
+
 Do not create screenshots by default.
 
 ## Do not commit generated artifacts
@@ -52,6 +54,7 @@ Never commit:
 - `blob-report/`
 - `docs/screenshots/`
 - `.next/`
+- `.env`
 - `.env.local`
 - trace files
 - failure screenshots

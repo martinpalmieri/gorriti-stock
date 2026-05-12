@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { shouldQuerySupabaseTables } from "@/lib/supabase/should-query-supabase-tables";
 import type { SupabaseTableClient } from "@/lib/inventory/supabase-types";
 import {
   createFallbackProduct,
@@ -60,14 +61,6 @@ type ProductFormValues = {
   isbn: string;
   notes: string;
 };
-
-function hasSupabasePublicEnv() {
-  return Boolean(
-    process.env.PLAYWRIGHT_BYPASS_AUTH !== "1" &&
-      process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
-}
 
 function optionalText(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
@@ -216,7 +209,7 @@ export async function setProductActiveStatus(input: {
     return { status: "error", message: "No se encontró el producto." };
   }
 
-  if (!hasSupabasePublicEnv()) {
+  if (!shouldQuerySupabaseTables()) {
     const updated = setFallbackProductActive(productId, input.isActive);
     if (!updated) {
       return { status: "error", message: "No se encontró el producto." };
@@ -260,7 +253,7 @@ export async function createProduct(
     };
   }
 
-  if (!hasSupabasePublicEnv()) {
+  if (!shouldQuerySupabaseTables()) {
     createFallbackProduct(fallbackProduct(parsed.values), parsed.values.initialStock);
     revalidatePath("/inventory");
 
@@ -354,7 +347,7 @@ export async function updateProduct(
     };
   }
 
-  if (!hasSupabasePublicEnv()) {
+  if (!shouldQuerySupabaseTables()) {
     const updated = updateFallbackProduct(productId, fallbackProduct(parsed.values));
 
     if (!updated) {
@@ -420,7 +413,7 @@ export async function getProductStockMovements(
     return { status: "error", message: "No se encontró el producto.", movements: [] };
   }
 
-  if (!hasSupabasePublicEnv()) {
+  if (!shouldQuerySupabaseTables()) {
     return { status: "success", movements: getFallbackStockMovements(normalizedProductId) };
   }
 
@@ -497,7 +490,7 @@ export async function correctProductStock(
     };
   }
 
-  if (!hasSupabasePublicEnv()) {
+  if (!shouldQuerySupabaseTables()) {
     const result = correctFallbackStock({
       productId,
       adjustment: adjustment ?? 0,

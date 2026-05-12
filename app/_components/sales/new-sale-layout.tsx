@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { useMemo, useState, useTransition } from "react";
-import { Button } from "../ui/button";
-import type { SaleProduct } from "@/app/(protected)/sales/new/actions";
-import { confirmSale } from "@/app/(protected)/sales/new/actions";
+import { useMemo, useState, useTransition } from 'react';
+import { Button } from '../ui/button';
+import type { SaleProduct } from '@/app/(protected)/sales/new/actions';
+import { confirmSale } from '@/app/(protected)/sales/new/actions';
 import {
   NEW_SALE_PAYMENT_METHODS,
   paymentMethodLabel,
   type AllowedNewSalePaymentMethod,
-} from "@/lib/sales/payment-method";
+} from '@/lib/sales/payment-method';
 
 type PaymentMethod = AllowedNewSalePaymentMethod;
 
@@ -24,9 +24,9 @@ type SuccessSale = {
   saleId: string;
 };
 
-const euroFormatter = new Intl.NumberFormat("es-ES", {
-  style: "currency",
-  currency: "EUR",
+const euroFormatter = new Intl.NumberFormat('es-ES', {
+  style: 'currency',
+  currency: 'EUR',
 });
 
 function formatPrice(cents: number) {
@@ -34,7 +34,7 @@ function formatPrice(cents: number) {
 }
 
 function normalize(value: string) {
-  return value.toLocaleLowerCase("es").trim();
+  return value.toLocaleLowerCase('es').trim();
 }
 
 function productMatchesSearch(product: SaleProduct, query: string) {
@@ -50,7 +50,7 @@ function productMatchesSearch(product: SaleProduct, query: string) {
     product.category,
     product.barcode,
     product.sku,
-    product.isbn ?? "",
+    product.isbn ?? '',
   ].some((field) => normalize(field).includes(normalizedQuery));
 }
 
@@ -58,18 +58,22 @@ export function NewSaleLayout({
   productsResult,
 }: {
   productsResult:
-    | { status: "success"; products: SaleProduct[]; source: "supabase" | "mock" }
     | {
-        status: "error";
+        status: 'success';
+        products: SaleProduct[];
+        source: 'supabase' | 'mock';
+      }
+    | {
+        status: 'error';
         message: string;
         products: SaleProduct[];
-        source: "supabase" | "mock";
+        source: 'supabase' | 'mock';
       };
 }) {
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentMethod, setPaymentMethod] =
-    useState<PaymentMethod>("manual_sumup");
+    useState<PaymentMethod>('manual_sumup');
   const [successSale, setSuccessSale] = useState<SuccessSale | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -153,8 +157,8 @@ export function NewSaleLayout({
 
   function cancelSale() {
     setCart([]);
-    setSearch("");
-    setPaymentMethod("manual_sumup");
+    setSearch('');
+    setPaymentMethod('manual_sumup');
     setSuccessSale(null);
     setErrorMessage(null);
   }
@@ -176,7 +180,7 @@ export function NewSaleLayout({
         notes: null,
       });
 
-      if (result.status === "error") {
+      if (result.status === 'error') {
         setErrorMessage(result.message);
         return;
       }
@@ -188,7 +192,7 @@ export function NewSaleLayout({
         paymentMethod: result.paymentMethod,
       });
       setCart([]);
-      setSearch("");
+      setSearch('');
     });
   }
 
@@ -201,10 +205,11 @@ export function NewSaleLayout({
               Buscar productos
             </h3>
             <p className="mt-1 text-sm text-stone-600">
-              Busca por título, creador, categoría, código de barras, SKU o ISBN.
+              Busca por título, creador, categoría, código de barras, SKU o
+              ISBN.
             </p>
           </div>
-          {productsResult.source === "mock" ? (
+          {productsResult.source === 'mock' ? (
             <span className="rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 ring-1 ring-amber-200">
               Datos simulados
             </span>
@@ -255,7 +260,10 @@ export function NewSaleLayout({
                         {product.creator} · {formatPrice(product.priceCents)}
                       </p>
                       <p className="mt-1 text-xs font-medium text-stone-500">
-                        SKU {product.sku} · {product.isbn ? `ISBN ${product.isbn}` : `EAN ${product.barcode}`}
+                        SKU {product.sku} ·{' '}
+                        {product.isbn
+                          ? `ISBN ${product.isbn}`
+                          : `EAN ${product.barcode}`}
                       </p>
                     </div>
                     <p className="text-sm font-semibold text-stone-700">
@@ -266,27 +274,27 @@ export function NewSaleLayout({
                       <span
                         className={`inline-flex rounded-md border px-2 py-0.5 text-sm font-semibold ${
                           remainingStock === 0
-                            ? "border-red-200 bg-red-50 text-red-800"
+                            ? 'border-red-200 bg-red-50 text-red-800'
                             : remainingStock === 1
-                              ? "border-amber-200 bg-amber-50 text-amber-900"
-                              : "border-emerald-200 bg-emerald-50 text-emerald-800"
+                              ? 'border-amber-200 bg-amber-50 text-amber-900'
+                              : 'border-emerald-200 bg-emerald-50 text-emerald-800'
                         }`}
                       >
                         {remainingStock > 0
-                          ? `${remainingStock} disponible${remainingStock === 1 ? "" : "s"}`
-                          : "Stock máximo"}
+                          ? `${remainingStock} disponible${remainingStock === 1 ? '' : 's'}`
+                          : 'Stock máximo'}
                       </span>
                     </div>
                     <div className="md:text-right">
                       <Button
                         type="button"
-                        variant={cannotAdd ? "secondary" : "primary"}
+                        variant={cannotAdd ? 'secondary' : 'primary'}
                         className="w-full md:w-auto"
                         onClick={() => addProduct(product)}
                         disabled={cannotAdd}
                         aria-label={`Añadir ${product.title}`}
                       >
-                        {cannotAdd ? "Sin stock" : "Añadir"}
+                        {cannotAdd ? 'Sin stock' : 'Añadir'}
                       </Button>
                     </div>
                   </article>
@@ -299,13 +307,14 @@ export function NewSaleLayout({
                 No hay productos que coincidan
               </p>
               <p className="mx-auto mt-2 max-w-md text-sm text-stone-600">
-                Prueba con título, creador, categoría, SKU, ISBN o código de barras.
+                Prueba con título, creador, categoría, SKU, ISBN o código de
+                barras.
               </p>
               <Button
                 type="button"
                 variant="secondary"
                 className="mt-4"
-                onClick={() => setSearch("")}
+                onClick={() => setSearch('')}
               >
                 Limpiar búsqueda
               </Button>
@@ -314,14 +323,17 @@ export function NewSaleLayout({
         </div>
       </div>
 
-      <aside className="rounded-lg border border-stone-200 bg-white p-4" aria-label="Carrito de venta">
+      <aside
+        className="rounded-lg border border-stone-200 bg-white p-4"
+        aria-label="Carrito de venta"
+      >
         <div className="flex items-start justify-between gap-4">
           <div>
             <h3 className="text-lg font-semibold text-stone-950">Carrito</h3>
             <p className="mt-1 text-sm text-stone-600">
               {cartItemCount > 0
-                ? `${cartItemCount} unidad${cartItemCount === 1 ? "" : "es"} en la venta`
-                : "Añade productos para empezar."}
+                ? `${cartItemCount} unidad${cartItemCount === 1 ? '' : 'es'} en la venta`
+                : 'Añade productos para empezar.'}
             </p>
           </div>
           <span className="rounded-md bg-stone-100 px-2 py-1 text-xs font-medium text-stone-800 ring-1 ring-stone-200">
@@ -335,9 +347,9 @@ export function NewSaleLayout({
             role="alert"
           >
             <p className="text-xs font-medium text-red-800">
-              {errorMessage.toLocaleLowerCase("es").includes("stock")
-                ? "Stock insuficiente"
-                : "No se pudo confirmar la venta"}
+              {errorMessage.toLocaleLowerCase('es').includes('stock')
+                ? 'Stock insuficiente'
+                : 'No se pudo confirmar la venta'}
             </p>
             <p className="mt-2 text-sm font-semibold">{errorMessage}</p>
           </div>
@@ -356,7 +368,8 @@ export function NewSaleLayout({
                       {item.product.title}
                     </h4>
                     <p className="mt-1 text-sm text-stone-600">
-                      {item.product.creator} · {formatPrice(item.product.priceCents)}
+                      {item.product.creator} ·{' '}
+                      {formatPrice(item.product.priceCents)}
                     </p>
                   </div>
                   <button
@@ -374,7 +387,9 @@ export function NewSaleLayout({
                     <button
                       type="button"
                       className="px-3 py-1.5 text-base font-semibold text-stone-900 transition hover:bg-stone-100 disabled:text-stone-400"
-                      onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                      onClick={() =>
+                        updateQuantity(item.product.id, item.quantity - 1)
+                      }
                       aria-label={`Reducir cantidad de ${item.product.title}`}
                     >
                       −
@@ -395,7 +410,9 @@ export function NewSaleLayout({
                     </button>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs font-medium text-stone-500">Subtotal</p>
+                    <p className="text-xs font-medium text-stone-500">
+                      Subtotal
+                    </p>
                     <p className="text-base font-semibold text-stone-950">
                       {formatPrice(item.product.priceCents * item.quantity)}
                     </p>
@@ -405,8 +422,8 @@ export function NewSaleLayout({
                 {item.quantity >= item.product.stock ? (
                   <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 ring-1 ring-amber-200">
                     Límite de stock alcanzado: {item.product.stock} unidad
-                    {item.product.stock === 1 ? "" : "es"} disponible
-                    {item.product.stock === 1 ? "" : "s"}.
+                    {item.product.stock === 1 ? '' : 'es'} disponible
+                    {item.product.stock === 1 ? '' : 's'}.
                   </p>
                 ) : null}
               </article>
@@ -414,7 +431,9 @@ export function NewSaleLayout({
           </div>
         ) : (
           <div className="mt-4 rounded-lg border border-dashed border-stone-300 bg-stone-50 p-4 text-center">
-            <p className="text-base font-semibold text-stone-950">Carrito vacío</p>
+            <p className="text-base font-semibold text-stone-950">
+              Carrito vacío
+            </p>
             <p className="mt-2 text-sm text-stone-600">
               Usa la búsqueda rápida para añadir productos a esta venta.
             </p>
@@ -440,8 +459,8 @@ export function NewSaleLayout({
                 key={method.value}
                 className={`flex cursor-pointer items-center justify-center rounded-md border px-3 py-2 text-center text-sm font-medium transition ${
                   paymentMethod === method.value
-                    ? "border-stone-950 bg-stone-950 text-white"
-                    : "border-stone-300 bg-white text-stone-800 hover:bg-stone-50"
+                    ? 'border-stone-950 bg-stone-950 text-white'
+                    : 'border-stone-300 bg-white text-stone-800 hover:bg-stone-50'
                 }`}
               >
                 <input
@@ -464,7 +483,7 @@ export function NewSaleLayout({
             variant="secondary"
             className="w-full"
             onClick={cancelSale}
-            disabled={isPending}
+            disabled={cartItemCount === 0 || isPending}
           >
             Cancelar venta
           </Button>
@@ -474,7 +493,7 @@ export function NewSaleLayout({
             onClick={handleConfirmSale}
             disabled={cart.length === 0 || isPending}
           >
-            {isPending ? "Confirmando..." : "Confirmar venta"}
+            {isPending ? 'Confirmando...' : 'Confirmar venta'}
           </Button>
         </div>
 
@@ -488,11 +507,12 @@ export function NewSaleLayout({
               Venta confirmada
             </p>
             <h4 className="mt-2 text-xl font-semibold">
-              {euroFormatter.format(Number(successSale.totalAmount))} registrados
+              {euroFormatter.format(Number(successSale.totalAmount))}{' '}
+              registrados
             </h4>
             <p className="mt-2 text-sm font-semibold">
               {successSale.itemCount} unidad
-              {successSale.itemCount === 1 ? "" : "es"} · Pago:{" "}
+              {successSale.itemCount === 1 ? '' : 'es'} · Pago:{' '}
               {paymentMethodLabel(successSale.paymentMethod)}.
             </p>
             <p className="mt-2 text-sm text-emerald-900">

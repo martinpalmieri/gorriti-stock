@@ -52,6 +52,15 @@ export default async function DashboardPage() {
     <div className="space-y-8">
       <DashboardHeader />
 
+      {data.dashboardSetupHint ? (
+        <div
+          role="status"
+          className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+        >
+          {data.dashboardSetupHint}
+        </div>
+      ) : null}
+
       {data.loadError ? (
         <div
           role="alert"
