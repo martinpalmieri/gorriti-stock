@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from "react";
-import type { SaleDetail, SaleListItem } from "@/app/(protected)/sales/actions";
-import { getSaleDetail } from "@/app/(protected)/sales/actions";
-import { paymentMethodLabel } from "@/lib/sales/payment-method";
+import { useMemo, useState } from 'react';
+import type { SaleDetail, SaleListItem } from '@/app/(protected)/sales/actions';
+import { getSaleDetail } from '@/app/(protected)/sales/actions';
+import { paymentMethodLabel } from '@/lib/sales/payment-method';
 
 type SalesListProps = {
   sales: SaleListItem[];
@@ -11,21 +11,21 @@ type SalesListProps = {
   initialSaleDetail: SaleDetail | null;
 };
 
-const euroFormatter = new Intl.NumberFormat("es-ES", {
-  style: "currency",
-  currency: "EUR",
+const euroFormatter = new Intl.NumberFormat('es-ES', {
+  style: 'currency',
+  currency: 'EUR',
 });
 
 function formatDateTime(value: string | null) {
-  if (!value) return "—";
+  if (!value) return '—';
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString("es-ES", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString('es-ES', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }
 
@@ -37,16 +37,20 @@ function formatCurrency(value: string) {
 
 function statusLabel(value: string) {
   switch (value) {
-    case "confirmed":
-      return "Confirmada";
-    case "cancelled":
-      return "Cancelada";
+    case 'confirmed':
+      return 'Confirmada';
+    case 'cancelled':
+      return 'Cancelada';
     default:
       return value;
   }
 }
 
-export function SalesList({ sales, loadError, initialSaleDetail }: SalesListProps) {
+export function SalesList({
+  sales,
+  loadError,
+  initialSaleDetail,
+}: SalesListProps) {
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(
     sales[0]?.id ?? null,
   );
@@ -60,7 +64,7 @@ export function SalesList({ sales, loadError, initialSaleDetail }: SalesListProp
 
   const resolvedDetail =
     selectedSaleId && sales[0]?.id === selectedSaleId
-      ? detail ?? initialSaleDetail
+      ? (detail ?? initialSaleDetail)
       : detail;
 
   async function handleSelectSale(nextSaleId: string) {
@@ -69,7 +73,7 @@ export function SalesList({ sales, loadError, initialSaleDetail }: SalesListProp
     setDetailError(null);
 
     const result = await getSaleDetail(nextSaleId);
-    if (result.status === "error") {
+    if (result.status === 'error') {
       setDetail(null);
       setDetailError(result.message);
       setDetailLoading(false);
@@ -83,7 +87,9 @@ export function SalesList({ sales, loadError, initialSaleDetail }: SalesListProp
   return (
     <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
       <div className="rounded-lg border border-stone-200 bg-white p-4">
-        <h3 className="text-lg font-semibold text-stone-950">Historial de ventas</h3>
+        <h3 className="text-lg font-semibold text-stone-950">
+          Historial de ventas
+        </h3>
 
         {loadError ? (
           <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-900">
@@ -116,7 +122,7 @@ export function SalesList({ sales, loadError, initialSaleDetail }: SalesListProp
                   type="button"
                   onClick={() => void handleSelectSale(sale.id)}
                   className={`grid w-full gap-2 px-3 py-2.5 text-left transition hover:bg-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-stone-800 md:grid-cols-[minmax(0,1fr)_120px_140px] md:items-center ${
-                    selectedSaleId === sale.id ? "bg-amber-50" : "bg-white"
+                    selectedSaleId === sale.id ? 'bg-amber-50' : 'bg-white'
                   }`}
                   aria-pressed={selectedSaleId === sale.id}
                 >
@@ -125,12 +131,12 @@ export function SalesList({ sales, loadError, initialSaleDetail }: SalesListProp
                       {formatDateTime(sale.createdAt)}
                     </p>
                     <p className="mt-1 text-sm text-stone-600">
-                      Método de pago: {paymentMethodLabel(sale.paymentMethod)} ·{" "}
+                      Método de pago: {paymentMethodLabel(sale.paymentMethod)} ·{' '}
                       Estado: {statusLabel(sale.status)}
                     </p>
                   </div>
                   <p className="text-sm font-semibold text-stone-700">
-                    {sale.itemCount} unidad{sale.itemCount === 1 ? "" : "es"}
+                    {sale.itemCount} unidad{sale.itemCount === 1 ? '' : 'es'}
                   </p>
                   <p className="font-bold text-stone-950 md:text-right">
                     {formatCurrency(sale.totalAmount)}
@@ -146,7 +152,6 @@ export function SalesList({ sales, loadError, initialSaleDetail }: SalesListProp
         className="rounded-lg border border-stone-200 bg-white p-4"
         aria-label="Detalle de venta"
       >
-        <p className="text-xs font-medium text-amber-700">Ventas</p>
         <h3 className="mt-2 text-lg font-semibold text-stone-950">
           Detalle de venta
         </h3>
@@ -201,7 +206,8 @@ export function SalesList({ sales, loadError, initialSaleDetail }: SalesListProp
               <div className="flex justify-between gap-4 rounded-md bg-stone-50 p-3 ring-1 ring-stone-200">
                 <dt className="font-semibold text-stone-600">Productos</dt>
                 <dd className="text-right font-semibold text-stone-950">
-                  {resolvedDetail.itemCount} unidad{resolvedDetail.itemCount === 1 ? "" : "es"}
+                  {resolvedDetail.itemCount} unidad
+                  {resolvedDetail.itemCount === 1 ? '' : 'es'}
                 </dd>
               </div>
             </dl>
@@ -245,4 +251,3 @@ export function SalesList({ sales, loadError, initialSaleDetail }: SalesListProp
     </section>
   );
 }
-

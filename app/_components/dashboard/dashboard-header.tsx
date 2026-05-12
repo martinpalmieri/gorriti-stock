@@ -1,10 +1,9 @@
-import { LinkButton } from "../ui/button";
-import { PageHeader } from "../ui/page-header";
+import { LinkButton } from '../ui/button';
+import { PageHeader } from '../ui/page-header';
 
 export function DashboardHeader() {
   return (
     <PageHeader
-      eyebrow="Panel"
       title="Resumen de la tienda"
       actions={<LinkButton href="/sales/new">Nueva venta</LinkButton>}
     />

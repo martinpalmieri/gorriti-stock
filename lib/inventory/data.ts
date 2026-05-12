@@ -100,3 +100,32 @@ export async function getInventoryData(input?: {
     error: null,
   };
 }
+
+export async function getProductById(productId: string): Promise<Product | null> {
+  const normalizedProductId = productId.trim();
+  if (!normalizedProductId) {
+    return null;
+  }
+
+  if (!shouldQuerySupabaseTables()) {
+    return (
+      getFallbackProducts().find((product) => product.id === normalizedProductId) ??
+      null
+    );
+  }
+
+  const supabase = (await createClient() as unknown) as SupabaseTableClient;
+  const { data, error } = await supabase
+    .from<ProductRow>("products")
+    .select(
+      "id, name, category_id, creator_or_author, brand_publisher_label, price, cost_price, current_stock, is_active, condition, supplier, barcode, sku, isbn, notes, created_at, updated_at, categories:category_id(name)",
+    )
+    .eq("id", normalizedProductId)
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return mapProduct(data);
+}
