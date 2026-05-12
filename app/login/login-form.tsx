@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import { useActionState } from "react";
-import { login, type LoginState } from "./actions";
+import { useActionState } from 'react';
+import { login, type LoginState } from './actions';
 
 const initialState: LoginState = {
-  message: "",
+  message: '',
 };
 
 export function LoginForm() {
   const [state, formAction, pending] = useActionState(login, initialState);
 
   return (
-    <form action={formAction} className="mt-8 space-y-5">
+    <form action={formAction} className="space-y-5">
       <div className="space-y-2">
         <label htmlFor="email" className="text-sm font-semibold text-stone-800">
           Email
@@ -56,7 +56,7 @@ export function LoginForm() {
         disabled={pending}
         className="w-full rounded-2xl bg-stone-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-stone-800 focus:outline-none focus:ring-4 focus:ring-amber-200 disabled:cursor-not-allowed disabled:bg-stone-500"
       >
-        {pending ? "Entrando..." : "Iniciar sesión"}
+        {pending ? 'Entrando...' : 'Iniciar sesión'}
       </button>
     </form>
   );
