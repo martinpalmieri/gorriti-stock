@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { perfTime } from "@/lib/perf/log";
 import { shouldQuerySupabaseTables } from "@/lib/supabase/should-query-supabase-tables";
 import type { Database } from "@/types/database.types";
 import type { SupabaseTableClient } from "@/lib/inventory/supabase-types";
@@ -92,10 +93,12 @@ export async function getInventoryData(input?: {
     productsQuery.eq("is_active", false);
   }
 
-  const [categoriesResult, productsResult] = await Promise.all([
-    supabase.from<Category>("categories").select("id, name, slug").order("name"),
-    productsQuery.order("updated_at", { ascending: false }),
-  ]);
+  const [categoriesResult, productsResult] = await perfTime("inventory", "queries", () =>
+    Promise.all([
+      supabase.from<Category>("categories").select("id, name, slug").order("name"),
+      productsQuery.order("updated_at", { ascending: false }),
+    ]),
+  );
 
   if (categoriesResult.error || productsResult.error) {
     return {

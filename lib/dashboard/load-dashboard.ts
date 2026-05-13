@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hasSupabaseUrlAndAnonKey } from "@/lib/supabase/public-env";
 import { shouldQuerySupabaseTables } from "@/lib/supabase/should-query-supabase-tables";
 import type { SupabaseTableClient } from "@/lib/inventory/supabase-types";
+import { perfTime } from "@/lib/perf/log";
 
 export type DashboardLatestSale = {
   id: string;
@@ -132,35 +133,37 @@ type MovementRow = {
     outOfStockResult,
     latestSalesResult,
     movementsResult,
-  ] = await Promise.all([
-    supabase
-      .from<SaleTodayRow>("sales")
-      .select("total_amount")
-      .eq("status", "confirmed")
-      .gte("created_at", startIso)
-      .lt("created_at", endExclusiveIso),
-    supabase
-      .from("products")
-      .select("*", { count: "exact", head: true })
-      .eq("is_active", true)
-      .gt("current_stock", 0),
-    supabase
-      .from("products")
-      .select("*", { count: "exact", head: true })
-      .eq("is_active", true)
-      .eq("current_stock", 0),
-    supabase
-      .from<LatestSaleRow>("sales")
-      .select("id, created_at, total_amount, payment_method, status, sale_items(quantity)")
-      .eq("status", "confirmed")
-      .order("created_at", { ascending: false })
-      .limit(5),
-    supabase
-      .from<MovementRow>("stock_movements")
-      .select("id, type, quantity_change, created_at, product:product_id(name)")
-      .order("created_at", { ascending: false })
-      .limit(5),
-  ]);
+  ] = await perfTime("dashboard", "queries", () =>
+    Promise.all([
+      supabase
+        .from<SaleTodayRow>("sales")
+        .select("total_amount")
+        .eq("status", "confirmed")
+        .gte("created_at", startIso)
+        .lt("created_at", endExclusiveIso),
+      supabase
+        .from("products")
+        .select("*", { count: "exact", head: true })
+        .eq("is_active", true)
+        .gt("current_stock", 0),
+      supabase
+        .from("products")
+        .select("*", { count: "exact", head: true })
+        .eq("is_active", true)
+        .eq("current_stock", 0),
+      supabase
+        .from<LatestSaleRow>("sales")
+        .select("id, created_at, total_amount, payment_method, status, sale_items(quantity)")
+        .eq("status", "confirmed")
+        .order("created_at", { ascending: false })
+        .limit(5),
+      supabase
+        .from<MovementRow>("stock_movements")
+        .select("id, type, quantity_change, created_at, product:product_id(name)")
+        .order("created_at", { ascending: false })
+        .limit(5),
+    ]),
+  );
 
   const inStockCounted = inStockResult as unknown as CountResult;
   const outStockCounted = outOfStockResult as unknown as CountResult;

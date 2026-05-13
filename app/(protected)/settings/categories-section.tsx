@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { perfTime } from "@/lib/perf/log";
 import { shouldQuerySupabaseTables } from "@/lib/supabase/should-query-supabase-tables";
 import type { Database } from "@/types/database.types";
 import type { SupabaseTableClient } from "@/lib/inventory/supabase-types";
@@ -22,14 +23,16 @@ export async function CategoriesSection() {
   }
 
   const supabase = (await createClient() as unknown) as SupabaseTableClient;
-  const { data, error } = await supabase
-    .from<CategoryRow>("categories")
-    .select("id, name, slug")
-    .order("name", { ascending: true });
+  const { data, error } = await perfTime("settings", "categories", async () =>
+    supabase
+      .from<CategoryRow>("categories")
+      .select("id, name, slug")
+      .order("name", { ascending: true }),
+  );
 
   return (
     <CategoriesManager
-      categories={(data ?? []).map((row) => ({
+      categories={(data ?? []).map((row: CategoryRow) => ({
         id: row.id,
         name: row.name,
         slug: row.slug,

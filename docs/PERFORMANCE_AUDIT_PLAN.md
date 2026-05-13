@@ -1,188 +1,135 @@
-# Performance Audit Plan
+# Production Performance Audit
 
-## Problem
+## Observed problem
 
-Navigating through the app feels slow, even with little or no data loaded.
-Goal: identify why and propose focused, low-risk improvements before changing anything large.
+Navigation feels slow on the deployed Vercel app (`https://stock.gorriti.eu`), not only in local development.
 
-## Routes to test
+## What was measured
 
-- `/` (dashboard)
+### Routes in scope
+
+- `/`
 - `/inventory`
 - `/sales/new`
 - `/sales`
 - `/settings`
+- `/login`
 
-## Measurement plan
+### Code-path audit completed
 
-1. Local dev navigation
-   - `npm run dev`
-   - Click each route in order, then re-click already-visited routes.
-   - Note "first hit" vs "warm hit" timings; dev compiles per route on first visit.
-2. Production-local navigation
-   - `npm run build && npm run start`
-   - Repeat the same click pattern.
-   - If prod is fast and dev is slow, dev compile is the dominant cause.
-3. Server-side timing logs (temporary, dev-only)
-   - In `app/(protected)/layout.tsx`, around `createClient()` and `supabase.auth.getUser()`:
-     ```ts
-     const t0 = performance.now();
-     const supabase = await createClient();
-     const t1 = performance.now();
-     const {
-       data: { user },
-     } = await supabase.auth.getUser();
-     const t2 = performance.now();
-     console.log(
-       `[layout] createClient=${(t1 - t0).toFixed(1)}ms getUser=${(t2 - t1).toFixed(1)}ms`,
-     );
-     ```
-   - Same shape around the page-level data loaders:
-     - `lib/dashboard/load-dashboard.ts`
-     - `lib/inventory/data.ts:getInventoryData`
-     - `app/(protected)/sales/page.tsx` queries
-     - `app/(protected)/sales/new/actions.ts:listActiveProductsForSale`
-     - `app/(protected)/settings/categories-section.tsx`
-4. Browser DevTools
-   - Network tab: look at the duration of `/auth/v1/user` and PostgREST calls.
-   - Performance tab: only if needed after the server timings are clear.
-5. Console timing
-   - Optional `console.time` around large client useMemo blocks (`product-list.tsx`, `new-sale-layout.tsx`) to confirm filtering is not the bottleneck.
+- Protected navigation currently runs auth in [`app/(protected)/layout.tsx`](app/(protected)/layout.tsx) with:
+  - `createClient()`
+  - `supabase.auth.getUser()`
+- This means auth can run on every protected route transition.
+- Route loaders inspected:
+  - [`lib/dashboard/load-dashboard.ts`](lib/dashboard/load-dashboard.ts)
+  - [`lib/inventory/data.ts`](lib/inventory/data.ts)
+  - [`app/(protected)/sales/page.tsx`](app/(protected)/sales/page.tsx)
+  - [`app/(protected)/sales/new/actions.ts`](app/(protected)/sales/new/actions.ts)
+  - [`app/(protected)/settings/categories-section.tsx`](app/(protected)/settings/categories-section.tsx)
+- Query-shape observations:
+  - Dashboard and inventory loaders already use `Promise.all` for key independent queries.
+  - Sales page still does sequential work (list query, then initial detail query).
 
-## Suspected bottlenecks
+### Optional production timing instrumentation added
 
-1. `next dev` compile cost
-   - Big client components are compiled on first navigation:
-     - `app/_components/inventory/product-list.tsx` (1160 lines)
-     - `app/_components/sales/new-sale-layout.tsx` (509 lines)
-   - In production these are bundled once and serve fast.
+Server-side timing logs are now available behind an env flag:
 
-2. Auth round-trip on every protected route
-   - `app/(protected)/layout.tsx` calls `supabase.auth.getUser()` on every navigation.
-   - Supabase SSR `getUser()` is a network call to `/auth/v1/user`. There is no middleware in this project to share or refresh the session, and no caching layer.
-   - With normal latency this can dominate small-data pages (~150-300 ms).
+- `ENABLE_PERF_LOGS=1`
 
-3. Sales over-fetch and sequential queries
-   - `app/(protected)/sales/page.tsx` runs:
-     ```ts
-     await supabase
-       .from("sales")
-       .select(
-         "id, created_at, total_amount, payment_method, status, sale_items(quantity)",
-       )
-       .order("created_at", { ascending: false });
-     ```
-     with no `.limit(50)`, then `.slice(0, 50)` in JS.
-   - Then it awaits `getSaleDetail(sales[0].id)` sequentially before rendering.
+When enabled, the app logs only minimal, non-sensitive timing data:
 
-4. Redundant client refreshes after server actions
-   - Server actions call `revalidatePath` (e.g. `app/(protected)/inventory/actions.ts`), but client components also call `router.refresh()`:
-     - `app/_components/inventory/product-list.tsx` (3 places)
-     - `app/_components/sales/new-sale-layout.tsx`
-     - `app/(protected)/settings/categories-manager.tsx`
-   - This effectively requests fresh RSC payloads twice in some flows.
+- `[perf][layout] createClient=...ms`
+- `[perf][layout] getUser=...ms`
+- `[perf][dashboard] queries=...ms`
+- `[perf][inventory] queries=...ms`
+- `[perf][sales] list=...ms`
+- `[perf][sales] firstDetail=...ms`
+- `[perf][sales-new] products=...ms`
+- `[perf][settings] categories=...ms`
 
-5. Possibly cold dynamic import of `@supabase/ssr`
-   - `lib/supabase/server.ts` uses `new Function('specifier', 'return import(specifier)')` to load `@supabase/ssr`. Module cache should make repeat calls cheap, but worth confirming with the timing logs.
+No user emails, secrets, or query payloads are logged.
 
-6. Large client trees, not yet a bottleneck
-   - `product-list.tsx` is huge. It memoizes `clientProducts` and `filteredProducts`. Filtering work is fine for small N. Worth splitting later mainly to reduce dev compile time and improve readability, not because filtering is slow.
+### Runtime numbers still required
 
-## Quick wins, candidates for now
+To complete evidence from production, run with `ENABLE_PERF_LOGS=1` on Vercel and capture timings per route from function logs.
 
-A. Add `.limit(50)` to the sales list query
+## Likely bottlenecks
 
-- File: `app/(protected)/sales/page.tsx`
-- Replace `.order('created_at', { ascending: false })` with `.order('created_at', { ascending: false }).limit(50)` and drop the JS `.slice(0, 50)`.
-- Risk: none.
+Ranked by current evidence:
 
-B. Parallelize sales list and first-row detail
+1. **Auth round-trip on protected navigation (`getUser`)**
+   - Evidence: protected layout calls `supabase.auth.getUser()` before rendering children.
+   - Impact: adds at least one Supabase Auth network hop for each protected route render.
 
-- File: `app/(protected)/sales/page.tsx`
-- Fetch the list and call `getSaleDetail` only after we know the first id, but issue them in parallel where possible. Simplest: do not eagerly fetch the detail server-side; let `SalesList` fetch it on first render or lazy-load on click. Or: keep eager fetch but issue as soon as we have the first id alongside other work.
-- Risk: low, behavior preserved.
+2. **Vercel region and Supabase region latency**
+   - Evidence: likely in production when all requests depend on Supabase network hops; cannot be confirmed from code alone.
+   - Required check: compare Vercel Functions region vs Supabase project region.
 
-C. Drop redundant `router.refresh()` after server actions that already `revalidatePath`
+3. **Sequential server work on `/sales`**
+   - Evidence: sales list query resolves first, then `getSaleDetail` for first row runs.
+   - Impact: additional round-trip before full page payload is ready.
 
-- Files:
-  - `app/_components/inventory/product-list.tsx` (3 sites)
-  - `app/_components/sales/new-sale-layout.tsx`
-  - `app/(protected)/settings/categories-manager.tsx`
-- Risk: low, but verify each flow still updates after mutation. Some flows rely on `router.refresh()` to re-render the page with fresh server-side props.
+4. **Large client components (lower confidence for this issue)**
+   - Evidence: `product-list.tsx` and `new-sale-layout.tsx` are large.
+   - Likely impact: first-load JS/bundle cost more than server-navigation bottlenecks.
 
-D. Optional: collapse `from('products').select('*', { count: 'exact', head: true })` count queries
+## Immediate fixes
 
-- File: `lib/dashboard/load-dashboard.ts`
-- Two count queries can be replaced by one query that returns minimal columns and counts client-side, OR by a single Postgres function. Skip for now, current approach is correct and small-data.
+Small, safe actions to do first:
 
-## Larger refactors, only if Phase 1 measurements justify them
+1. Keep `ENABLE_PERF_LOGS` instrumentation temporarily and gather real production timings.
+2. Confirm Vercel Functions region and Supabase region; align regions if mismatched.
+3. Use captured timings to identify whether auth, queries, or route-specific loaders are dominant.
+4. Keep current sequential `/sales` behavior under observation; change only if logs show it as meaningful bottleneck.
 
-L1. Add Supabase auth middleware
+## Medium fixes
 
-- Add `middleware.ts` per Supabase Next.js SSR docs to keep the session cookie fresh and centralize `getUser()` once per request.
-- This does not eliminate the `/auth/v1/user` call, but avoids accidental extra `getUser()` calls in pages and ensures cookies are not stale after long idle.
-- Risk: medium, requires careful matcher and cookie handling.
+Changes that require care after measurements:
 
-L2. Server-side filter/search for inventory
+1. **Auth gate optimization in protected layout**
+   - Evaluate replacing layout-level `getUser()` with `getSession()` only for redirect gating.
+   - Keep security trade-off explicit in code/docs.
 
-- Move category, condition, stock, and search filters into URL params and into the Supabase query in `lib/inventory/data.ts`.
-- Reduces payload and lets the inventory client component shrink.
-- Risk: medium, changes UX state model.
+2. **Sales route data strategy**
+   - Defer first-detail query or load it on demand after list paint.
+   - Preserve UX behavior and avoid regressions in detail panel.
 
-L3. Split `product-list.tsx`
+3. **Query trimming where needed**
+   - Select only required columns on heavy routes if logs show material query time.
+   - Add limits where payload growth becomes measurable.
 
-- Extract `ProductForm`, `StockCorrectionModal`, search/filters, list, and detail aside into separate client components.
-- Goal: smaller dev compile and clearer re-render scope.
-- Risk: medium, mostly mechanical.
+4. **Perceived performance improvements**
+   - Add `loading.tsx` and/or granular loading states for routes that feel blocked while waiting on server data.
 
-L4. Stream the sales detail
+## Not recommended
 
-- Convert eager `getSaleDetail(sales[0].id)` server fetch into a `<Suspense>` boundary, so the list paints first.
-- Risk: low.
+Avoid these until evidence justifies them:
 
-L5. Replace `new Function('return import(...)')` with a normal top-level import
+- Adding Supabase middleware by default (can add overhead; does not inherently remove `getUser` network dependency).
+- Introducing React Query/global cache layer.
+- Large component architecture rewrites.
+- Global caching/Redis-style infrastructure changes.
+- Database schema changes for performance before query-level evidence.
+- UI redesign work unrelated to measured bottlenecks.
 
-- In `lib/supabase/server.ts`, if the dynamic import is not actually needed, switch to `import { createServerClient } from '@supabase/ssr'`. Confirm no SSR/edge constraint relies on the dynamic shape.
-- Risk: low.
+## Recommended next implementation task
 
-## Risks
+Use the new logs to collect one production timing pass, then execute one focused fix:
 
-- Removing `router.refresh()` could mask a flow that relied on it for re-render. Verify each affected flow manually.
-- Adding middleware can break auth if cookie handling is subtly wrong; copy the official Supabase SSR template carefully.
-- Server-side filtering changes the URL and back-button behavior; not for this audit pass.
+1. Set `ENABLE_PERF_LOGS=1` on Vercel (Production), redeploy.
+2. Log in and navigate: `/` -> `/inventory` -> `/sales/new` -> `/sales` -> `/settings` -> `/login`.
+3. Copy `[perf][...]` log lines and identify the single slowest step.
+4. If `[perf][layout] getUser` dominates, implement a small follow-up task:
+   - switch layout auth gate from `getUser()` to `getSession()`,
+   - keep DB/RLS security unchanged,
+   - re-measure the same route sequence.
 
-## Recommended implementation order
+## Manual checks
 
-Phase 1 - Measure
-
-- Add temporary timing logs in `(protected)/layout.tsx` and each route's data loader.
-- Run `npm run dev` and `npm run build && npm run start`, click each route twice, capture numbers.
-- Identify the slowest route and the slowest sub-step.
-
-Phase 2 - Quick wins, low risk
-
-- Apply A and B in `app/(protected)/sales/page.tsx`.
-- Apply C: remove redundant `router.refresh()` calls where `revalidatePath` already covers the case.
-- Re-measure.
-
-Phase 3 - Re-render and refresh hygiene
-
-- Audit each `revalidatePath` and confirm minimal scope.
-- Consider replacing some `router.refresh()` patterns with optimistic local state updates already used for stock overrides.
-
-Phase 4 - Larger refactors, only if needed
-
-- Add Supabase middleware (L1).
-- Move inventory filters server-side (L2).
-- Split `product-list.tsx` (L3).
-- Stream sales detail (L4).
-- Replace dynamic `@supabase/ssr` import (L5).
-
-## What not to do
-
-- Do not add caching blindly (no global `unstable_cache`, no Redis, no React Query yet).
-- Do not add complex state management, the current `useState`/`useMemo` model is fine.
-- Do not change the schema unless a measurement clearly demands it.
-- Do not rewrite the whole app or the inventory list in one pass.
-- Do not sacrifice correctness of stock and sales logic for speed; every stock change must still create a `stock_movements` row.
-- Do not over-focus on CSS, no clear issue was observed.
+- Open `https://stock.gorriti.eu`.
+- Login.
+- Navigate between all target routes.
+- Compare with local production (`npm run build && npm run start`) using same env flag.
+- Check Vercel function logs for `[perf][...]` lines.
+- Note which route/step is slowest and why.

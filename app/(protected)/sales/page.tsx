@@ -1,4 +1,5 @@
 import { SalesList } from '../../_components/sales/sales-list';
+import { perfTime } from '@/lib/perf/log';
 import { createClient } from '@/lib/supabase/server';
 import { shouldQuerySupabaseTables } from '@/lib/supabase/should-query-supabase-tables';
 import type { SupabaseTableClient } from '@/lib/inventory/supabase-types';
@@ -22,13 +23,15 @@ export default async function SalesPage() {
     };
 
     const supabase = (await createClient()) as unknown as SupabaseTableClient;
-    const { data, error } = await supabase
-      .from<SaleRow>('sales')
-      .select(
-        'id, created_at, total_amount, payment_method, status, sale_items(quantity)',
-      )
-      .order('created_at', { ascending: false })
-      .limit(50);
+    const { data, error } = await perfTime("sales", "list", async () =>
+      supabase
+        .from<SaleRow>('sales')
+        .select(
+          'id, created_at, total_amount, payment_method, status, sale_items(quantity)',
+        )
+        .order('created_at', { ascending: false })
+        .limit(50),
+    );
 
     if (error) {
       loadError = error.message;
@@ -51,7 +54,9 @@ export default async function SalesPage() {
   }
 
   if (!loadError && sales[0]?.id) {
-    initialSaleDetail = await getSaleDetail(sales[0].id);
+    initialSaleDetail = await perfTime("sales", "firstDetail", () =>
+      getSaleDetail(sales[0].id),
+    );
   }
 
   return (

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { perfTime } from "@/lib/perf/log";
 import { createClient } from "@/lib/supabase/server";
 import { shouldQuerySupabaseTables } from "@/lib/supabase/should-query-supabase-tables";
 import type { SupabaseTableClient } from "@/lib/inventory/supabase-types";
@@ -140,19 +141,21 @@ export async function listActiveProductsForSale(): Promise<ListProductsResult> {
   };
 
   const supabase = (await createClient() as unknown) as SupabaseSalesClient;
-  const { data, error } = await supabase
-    .from<ProductRow>("products")
-    .select(
-      "id, name, creator_or_author, price, current_stock, barcode, sku, isbn, is_active, categories(name)",
-    )
-    .eq("is_active", true)
-    .order("name", { ascending: true });
+  const { data, error } = await perfTime("sales-new", "products", async () =>
+    supabase
+      .from<ProductRow>("products")
+      .select(
+        "id, name, creator_or_author, price, current_stock, barcode, sku, isbn, is_active, categories(name)",
+      )
+      .eq("is_active", true)
+      .order("name", { ascending: true }),
+  );
 
   if (error) {
     return { status: "error", message: error.message, products: [], source: "supabase" };
   }
 
-  const products: SaleProduct[] = (data ?? []).map((row) => ({
+  const products: SaleProduct[] = (data ?? []).map((row: ProductRow) => ({
     id: row.id,
     title: row.name ?? "",
     creator: row.creator_or_author ?? "",
