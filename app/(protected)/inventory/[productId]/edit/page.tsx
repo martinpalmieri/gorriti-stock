@@ -55,7 +55,7 @@ export default async function EditProductPage({
       ) : null}
 
       <ProductForm
-        categories={categories}
+        categories={categories ?? []}
         mode={{ type: 'edit', product }}
         returnTo={returnTo}
       />

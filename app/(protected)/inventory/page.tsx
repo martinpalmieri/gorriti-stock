@@ -1,4 +1,9 @@
-import { getInventoryData, type InventoryStatusFilter } from "@/lib/inventory/data";
+import {
+  getInventoryData,
+  getProductById,
+  type InventoryStatusFilter,
+} from "@/lib/inventory/data";
+import { INVENTORY_PAGE_SIZE } from "@/lib/inventory/pagination";
 import { ProductList } from "../../_components/inventory/product-list";
 
 export default async function InventoryPage({
@@ -27,17 +32,28 @@ export default async function InventoryPage({
       : null;
   const deepLinkOpenStockCorrection = openStockCorrectionValue === "1";
 
-  const { categories, products, error } = await getInventoryData({ status });
+  const [{ categories, products, hasMore, error }, deepLinkProduct] =
+    await Promise.all([
+      getInventoryData({
+        status,
+        offset: 0,
+        limit: INVENTORY_PAGE_SIZE,
+        includeCategories: true,
+      }),
+      deepLinkSelection ? getProductById(deepLinkSelection) : Promise.resolve(null),
+    ]);
 
   return (
     <div className="space-y-6">
       <ProductList
-        categories={categories}
-        products={products}
+        categories={categories ?? []}
+        initialProducts={products}
+        initialHasMore={hasMore}
         loadError={error}
         statusFilter={status}
         deepLinkSelection={deepLinkSelection}
         deepLinkOpenStockCorrection={deepLinkOpenStockCorrection}
+        deepLinkProduct={deepLinkProduct}
       />
     </div>
   );

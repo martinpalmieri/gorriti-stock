@@ -1,9 +1,13 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { Button } from '../ui/button';
 import type { SaleProduct } from '@/app/(protected)/sales/new/actions';
-import { confirmSale } from '@/app/(protected)/sales/new/actions';
+import {
+  confirmSale,
+  listActiveProductsForSale,
+} from '@/app/(protected)/sales/new/actions';
+import { SALES_NEW_PAGE_SIZE } from '@/lib/inventory/pagination';
 import {
   NEW_SALE_PAYMENT_METHODS,
   paymentMethodLabel,
@@ -24,6 +28,21 @@ type SuccessSale = {
   saleId: string;
 };
 
+type ProductsResult =
+  | {
+      status: 'success';
+      products: SaleProduct[];
+      hasMore: boolean;
+      source: 'supabase' | 'mock';
+    }
+  | {
+      status: 'error';
+      message: string;
+      products: SaleProduct[];
+      hasMore: boolean;
+      source: 'supabase' | 'mock';
+    };
+
 const euroFormatter = new Intl.NumberFormat('es-ES', {
   style: 'currency',
   currency: 'EUR',
@@ -33,44 +52,24 @@ function formatPrice(cents: number) {
   return euroFormatter.format(cents / 100);
 }
 
-function normalize(value: string) {
-  return value.toLocaleLowerCase('es').trim();
-}
-
-function productMatchesSearch(product: SaleProduct, query: string) {
-  const normalizedQuery = normalize(query);
-
-  if (!normalizedQuery) {
-    return true;
-  }
-
-  return [
-    product.title,
-    product.creator,
-    product.category,
-    product.barcode,
-    product.sku,
-    product.isbn ?? '',
-  ].some((field) => normalize(field).includes(normalizedQuery));
-}
-
 export function NewSaleLayout({
   productsResult,
 }: {
-  productsResult:
-    | {
-        status: 'success';
-        products: SaleProduct[];
-        source: 'supabase' | 'mock';
-      }
-    | {
-        status: 'error';
-        message: string;
-        products: SaleProduct[];
-        source: 'supabase' | 'mock';
-      };
+  productsResult: ProductsResult;
 }) {
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [products, setProducts] = useState<SaleProduct[]>(
+    productsResult.products,
+  );
+  const [hasMore, setHasMore] = useState<boolean>(
+    productsResult.status === 'success' ? productsResult.hasMore : false,
+  );
+  const [pageLoading, setPageLoading] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(
+    productsResult.status === 'error' ? productsResult.message : null,
+  );
+  const [source] = useState<'supabase' | 'mock'>(productsResult.source);
+
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentMethod, setPaymentMethod] =
     useState<PaymentMethod>('manual_sumup');
@@ -78,11 +77,99 @@ export function NewSaleLayout({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const filteredProducts = useMemo(() => {
-    return productsResult.products.filter((product) =>
-      productMatchesSearch(product, search),
+  const fetchRequestIdRef = useRef(0);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const debounceTimerRef = useRef<number | null>(null);
+  const searchRef = useRef('');
+
+  useEffect(() => {
+    searchRef.current = searchInput.trim();
+  }, [searchInput]);
+
+  const fetchPage = useCallback(
+    async (params: { search: string; offset: number; append: boolean }) => {
+      const requestId = ++fetchRequestIdRef.current;
+      setPageLoading(true);
+      setPageError(null);
+
+      const result = await listActiveProductsForSale({
+        search: params.search,
+        offset: params.offset,
+      });
+
+      if (requestId !== fetchRequestIdRef.current) {
+        return;
+      }
+
+      if (result.status === 'error') {
+        setPageError(result.message);
+        if (!params.append) {
+          setProducts([]);
+          setHasMore(false);
+        }
+        setPageLoading(false);
+        return;
+      }
+
+      setProducts((current) =>
+        params.append ? [...current, ...result.products] : result.products,
+      );
+      setHasMore(result.hasMore);
+      setPageLoading(false);
+    },
+    [],
+  );
+
+  const cancelPendingDebounce = useCallback(() => {
+    if (debounceTimerRef.current !== null) {
+      window.clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+  }, []);
+
+  const refetchFirstPageNow = useCallback(
+    (overrideSearch?: string) => {
+      cancelPendingDebounce();
+      const nextSearch = overrideSearch ?? searchRef.current;
+      void fetchPage({ search: nextSearch, offset: 0, append: false });
+    },
+    [cancelPendingDebounce, fetchPage],
+  );
+
+  const refetchFirstPageDebounced = useCallback(
+    (nextSearch: string) => {
+      cancelPendingDebounce();
+      debounceTimerRef.current = window.setTimeout(() => {
+        debounceTimerRef.current = null;
+        void fetchPage({ search: nextSearch, offset: 0, append: false });
+      }, 250);
+    },
+    [cancelPendingDebounce, fetchPage],
+  );
+
+  useEffect(() => () => cancelPendingDebounce(), [cancelPendingDebounce]);
+
+  useEffect(() => {
+    if (!hasMore || pageLoading) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          void fetchPage({
+            search: searchRef.current,
+            offset: products.length,
+            append: true,
+          });
+        }
+      },
+      { rootMargin: '200px 0px' },
     );
-  }, [productsResult.products, search]);
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, pageLoading, products.length, fetchPage]);
 
   const cartTotalCents = useMemo(() => {
     return cart.reduce(
@@ -157,10 +244,11 @@ export function NewSaleLayout({
 
   function cancelSale() {
     setCart([]);
-    setSearch('');
+    setSearchInput('');
     setPaymentMethod('manual_sumup');
     setSuccessSale(null);
     setErrorMessage(null);
+    refetchFirstPageNow('');
   }
 
   function handleConfirmSale() {
@@ -192,7 +280,8 @@ export function NewSaleLayout({
         paymentMethod: result.paymentMethod,
       });
       setCart([]);
-      setSearch('');
+      setSearchInput('');
+      refetchFirstPageNow('');
     });
   }
 
@@ -205,11 +294,10 @@ export function NewSaleLayout({
               Buscar productos
             </h3>
             <p className="mt-1 text-sm text-stone-600">
-              Busca por título, creador, categoría, código de barras, SKU o
-              ISBN.
+              Busca por título, creador, código de barras, SKU o ISBN.
             </p>
           </div>
-          {productsResult.source === 'mock' ? (
+          {source === 'mock' ? (
             <span className="rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 ring-1 ring-amber-200">
               Datos simulados
             </span>
@@ -221,8 +309,12 @@ export function NewSaleLayout({
             Búsqueda rápida
           </span>
           <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            value={searchInput}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              setSearchInput(nextValue);
+              refetchFirstPageDebounced(nextValue.trim());
+            }}
             placeholder="Escanea o escribe: Borges, Joy Division, ART-HUELIN..."
             className="field-control mt-2 text-base font-medium focus:border-amber-600 focus:ring-4 focus:ring-amber-200"
             type="search"
@@ -232,6 +324,12 @@ export function NewSaleLayout({
           />
         </label>
 
+        {pageError ? (
+          <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-900">
+            {pageError}
+          </p>
+        ) : null}
+
         <div className="mt-5 overflow-hidden rounded-lg border border-stone-200">
           <div className="grid grid-cols-[minmax(0,1.25fr)_0.75fr_0.55fr_0.7fr] gap-4 bg-stone-100 px-3 py-2 text-xs font-medium text-stone-600 max-md:hidden">
             <span>Producto</span>
@@ -240,9 +338,9 @@ export function NewSaleLayout({
             <span className="text-right">Acción</span>
           </div>
 
-          {filteredProducts.length > 0 ? (
+          {products.length > 0 ? (
             <div className="divide-y divide-stone-200 bg-white">
-              {filteredProducts.map((product) => {
+              {products.map((product) => {
                 const quantityInCart = getQuantityInCart(product.id);
                 const remainingStock = product.stock - quantityInCart;
                 const cannotAdd = remainingStock <= 0;
@@ -304,22 +402,64 @@ export function NewSaleLayout({
           ) : (
             <div className="bg-white px-6 py-12 text-center">
               <p className="text-lg font-bold text-stone-950">
-                No hay productos que coincidan
+                {pageLoading
+                  ? 'Buscando productos…'
+                  : 'No hay productos que coincidan'}
               </p>
-              <p className="mx-auto mt-2 max-w-md text-sm text-stone-600">
-                Prueba con título, creador, categoría, SKU, ISBN o código de
-                barras.
-              </p>
-              <Button
-                type="button"
-                variant="secondary"
-                className="mt-4"
-                onClick={() => setSearch('')}
-              >
-                Limpiar búsqueda
-              </Button>
+              {!pageLoading ? (
+                <>
+                  <p className="mx-auto mt-2 max-w-md text-sm text-stone-600">
+                    Prueba con título, creador, SKU, ISBN o código de barras.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="mt-4"
+                    onClick={() => {
+                      setSearchInput('');
+                      refetchFirstPageNow('');
+                    }}
+                  >
+                    Limpiar búsqueda
+                  </Button>
+                </>
+              ) : null}
             </div>
           )}
+
+          {hasMore || pageLoading ? (
+            <div
+              ref={sentinelRef}
+              className="flex flex-col items-center gap-2 bg-white px-3 py-3"
+            >
+              {pageLoading ? (
+                <p className="text-sm font-medium text-stone-600">
+                  Cargando productos…
+                </p>
+              ) : hasMore ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="text-sm"
+                  onClick={() =>
+                    void fetchPage({
+                      search: searchRef.current,
+                      offset: products.length,
+                      append: true,
+                    })
+                  }
+                >
+                  Cargar más
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {!hasMore && !pageLoading && products.length >= SALES_NEW_PAGE_SIZE ? (
+            <p className="bg-white px-3 py-3 text-center text-xs font-medium text-stone-500">
+              No hay más productos.
+            </p>
+          ) : null}
         </div>
       </div>
 

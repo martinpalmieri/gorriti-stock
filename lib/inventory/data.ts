@@ -5,6 +5,7 @@ import type { Database } from "@/types/database.types";
 import type { SupabaseTableClient } from "@/lib/inventory/supabase-types";
 import type { Category, Product, ProductConditionValue } from "./types";
 import { getFallbackCategories, getFallbackProducts } from "./mock-store";
+import { INVENTORY_PAGE_SIZE } from "./pagination";
 
 type ProductRow = Database["public"]["Tables"]["products"]["Row"] & {
   categories: Pick<Database["public"]["Tables"]["categories"]["Row"], "name"> | null;
@@ -56,54 +57,158 @@ function mapProduct(row: ProductRow): Product {
 }
 
 export type InventoryStatusFilter = "active" | "archived" | "all";
+export type InventoryStockFilter = "all" | "in" | "out";
 
-export async function getInventoryData(input?: {
+export type InventoryQuery = {
   status?: InventoryStatusFilter;
-}): Promise<{
-  categories: Category[];
+  search?: string;
+  categoryId?: string | null;
+  condition?: ProductConditionValue | null;
+  stockFilter?: InventoryStockFilter;
+  offset?: number;
+  limit?: number;
+  includeCategories?: boolean;
+};
+
+export type InventoryQueryResult = {
+  categories: Category[] | null;
   products: Product[];
+  hasMore: boolean;
   error: string | null;
-}> {
+};
+
+const SEARCH_FIELDS = [
+  "name",
+  "creator_or_author",
+  "brand_publisher_label",
+  "barcode",
+  "sku",
+  "isbn",
+  "notes",
+] as const;
+
+function escapeIlikePattern(value: string) {
+  // PostgREST `or` filter uses commas, parentheses, and quotes as delimiters.
+  // Escape them along with ilike wildcards so user input is treated literally.
+  return value.replace(/([\\%_,()"])/g, "\\$1");
+}
+
+function buildSearchOrFilter(term: string, fields: readonly string[]) {
+  const escaped = escapeIlikePattern(term);
+  return fields.map((field) => `${field}.ilike.*${escaped}*`).join(",");
+}
+
+function removeAccents(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizeForMatch(value: string) {
+  return removeAccents(value).toLocaleLowerCase("es").trim();
+}
+
+function productMatchesSearch(product: Product, query: string) {
+  const normalized = normalizeForMatch(query);
+  if (!normalized) return true;
+
+  return [
+    product.name,
+    product.creatorOrAuthor,
+    product.brandPublisherLabel,
+    product.barcode,
+    product.sku,
+    product.isbn,
+    product.notes,
+  ].some((field) => normalizeForMatch(field).includes(normalized));
+}
+
+export async function getInventoryData(
+  input?: InventoryQuery,
+): Promise<InventoryQueryResult> {
   const status = input?.status ?? "active";
+  const search = input?.search?.trim() ?? "";
+  const categoryId = input?.categoryId ?? null;
+  const condition = input?.condition ?? null;
+  const stockFilter = input?.stockFilter ?? "all";
+  const offset = Math.max(0, input?.offset ?? 0);
+  const limit = Math.max(1, input?.limit ?? INVENTORY_PAGE_SIZE);
+  const includeCategories = input?.includeCategories ?? offset === 0;
+
   if (!shouldQuerySupabaseTables()) {
-    const allFallbackProducts = getFallbackProducts();
-    const filteredFallbackProducts =
-      status === "all"
-        ? allFallbackProducts
-        : allFallbackProducts.filter((p) =>
-            status === "active" ? p.isActive === true : p.isActive !== true,
-          );
+    const all = getFallbackProducts();
+    const filtered = all.filter((product) => {
+      if (status === "active" && product.isActive !== true) return false;
+      if (status === "archived" && product.isActive === true) return false;
+      if (categoryId && product.categoryId !== categoryId) return false;
+      if (condition && product.condition !== condition) return false;
+      if (stockFilter === "in" && product.currentStock <= 0) return false;
+      if (stockFilter === "out" && product.currentStock !== 0) return false;
+      if (search && !productMatchesSearch(product, search)) return false;
+      return true;
+    });
+
+    const page = filtered.slice(offset, offset + limit);
     return {
-      categories: getFallbackCategories(),
-      products: filteredFallbackProducts,
+      categories: includeCategories ? getFallbackCategories() : null,
+      products: page,
+      hasMore: filtered.length > offset + page.length,
       error: null,
     };
   }
 
   const supabase = (await createClient() as unknown) as SupabaseTableClient;
-  const productsQuery = supabase
+  let productsQuery = supabase
     .from<ProductRow>("products")
     .select(
       "id, name, category_id, creator_or_author, brand_publisher_label, price, cost_price, current_stock, is_active, condition, supplier, barcode, sku, isbn, notes, created_at, updated_at, categories:category_id(name)",
     );
 
   if (status === "active") {
-    productsQuery.eq("is_active", true);
+    productsQuery = productsQuery.eq("is_active", true);
   } else if (status === "archived") {
-    productsQuery.eq("is_active", false);
+    productsQuery = productsQuery.eq("is_active", false);
   }
 
-  const [categoriesResult, productsResult] = await perfTime("inventory", "queries", () =>
-    Promise.all([
-      supabase.from<Category>("categories").select("id, name, slug").order("name"),
-      productsQuery.order("updated_at", { ascending: false }),
-    ]),
+  if (categoryId) {
+    productsQuery = productsQuery.eq("category_id", categoryId);
+  }
+
+  if (condition) {
+    productsQuery = productsQuery.eq("condition", condition);
+  }
+
+  if (stockFilter === "in") {
+    productsQuery = productsQuery.gt("current_stock", 0);
+  } else if (stockFilter === "out") {
+    productsQuery = productsQuery.eq("current_stock", 0);
+  }
+
+  if (search) {
+    productsQuery = productsQuery.or(buildSearchOrFilter(search, SEARCH_FIELDS));
+  }
+
+  productsQuery = productsQuery
+    .order("updated_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  const categoriesQuery = includeCategories
+    ? supabase.from<Category>("categories").select("id, name, slug").order("name")
+    : null;
+
+  const [categoriesResult, productsResult] = await perfTime(
+    "inventory",
+    "queries",
+    () =>
+      Promise.all([
+        categoriesQuery ?? Promise.resolve({ data: null, error: null }),
+        productsQuery,
+      ]),
   );
 
   if (categoriesResult.error || productsResult.error) {
     return {
-      categories: categoriesResult.data ?? [],
+      categories: includeCategories ? (categoriesResult.data ?? []) : null,
       products: [],
+      hasMore: false,
       error:
         categoriesResult.error?.message ??
         productsResult.error?.message ??
@@ -111,9 +216,13 @@ export async function getInventoryData(input?: {
     };
   }
 
+  const rows = productsResult.data ?? [];
+  const products = rows.map((row) => mapProduct(row));
+
   return {
-    categories: categoriesResult.data ?? [],
-    products: (productsResult.data ?? []).map((row) => mapProduct(row)),
+    categories: includeCategories ? (categoriesResult.data ?? []) : null,
+    products,
+    hasMore: rows.length === limit,
     error: null,
   };
 }

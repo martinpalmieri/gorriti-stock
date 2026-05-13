@@ -17,6 +17,7 @@ type QueryBuilder<T> = {
   gt: (column: string, value: unknown) => QueryBuilder<T>;
   lt: (column: string, value: unknown) => QueryBuilder<T>;
   limit: (count: number) => QueryBuilder<T>;
+  range: (from: number, to: number) => QueryBuilder<T>;
   order: (column: string, options?: { ascending?: boolean }) => QueryBuilder<T>;
   single: () => QueryResult<T>;
   then: Promise<{ data: T[] | null; error: { message: string } | null }>["then"];

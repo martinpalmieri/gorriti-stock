@@ -31,7 +31,7 @@ export default async function NewProductPage({
       ) : null}
 
       <ProductForm
-        categories={categories}
+        categories={categories ?? []}
         mode={{ type: 'create' }}
         returnTo={returnTo}
       />

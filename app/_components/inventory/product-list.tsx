@@ -18,11 +18,16 @@ import type {
 import {
   getProductStockMovements,
   correctProductStock,
+  loadInventoryProductsPage,
   setProductActiveStatus,
 } from '@/app/(protected)/inventory/actions';
+import { INVENTORY_PAGE_SIZE } from '@/lib/inventory/pagination';
 import { Button } from '../ui/button';
 import { PageHeader } from '../ui/page-header';
-import type { InventoryStatusFilter } from '@/lib/inventory/data';
+import type {
+  InventoryStatusFilter,
+  InventoryStockFilter,
+} from '@/lib/inventory/data';
 
 const conditionLabels: Record<ProductConditionValue, string> = {
   new: 'Nuevo',
@@ -43,11 +48,13 @@ const stockFilters = [
 
 type ProductListProps = {
   categories: Category[];
-  products: Product[];
+  initialProducts: Product[];
+  initialHasMore: boolean;
   loadError: string | null;
   statusFilter: InventoryStatusFilter;
   deepLinkSelection?: string | null;
   deepLinkOpenStockCorrection?: boolean;
+  deepLinkProduct?: Product | null;
 };
 
 type StockMovement = {
@@ -73,26 +80,80 @@ const initialStockCorrectionState: StockCorrectionFormState = {
   fieldErrors: {},
 };
 
-function normalize(value: string) {
-  return value.toLocaleLowerCase('es').trim();
+type InventoryListCache = {
+  version: 1;
+  statusFilter: InventoryStatusFilter;
+  products: Product[];
+  hasMore: boolean;
+  searchInput: string;
+  category: string;
+  condition: ProductConditionValue | 'Todas';
+  stockFilter: InventoryStockFilter;
+};
+
+const INVENTORY_LIST_CACHE_PREFIX = 'inventory:list:v1';
+
+function getInventoryListCacheKey(statusFilter: InventoryStatusFilter) {
+  return `${INVENTORY_LIST_CACHE_PREFIX}:${statusFilter}`;
 }
 
-function productMatchesSearch(product: Product, query: string) {
-  const normalizedQuery = normalize(query);
-
-  if (!normalizedQuery) {
-    return true;
+function readInventoryListCache(
+  statusFilter: InventoryStatusFilter,
+): InventoryListCache | null {
+  if (typeof window === 'undefined') {
+    return null;
   }
+  try {
+    const raw = window.sessionStorage.getItem(getInventoryListCacheKey(statusFilter));
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as Partial<InventoryListCache>;
+    if (
+      parsed.version !== 1 ||
+      parsed.statusFilter !== statusFilter ||
+      !Array.isArray(parsed.products) ||
+      typeof parsed.hasMore !== 'boolean'
+    ) {
+      return null;
+    }
+    return {
+      version: 1,
+      statusFilter,
+      products: parsed.products as Product[],
+      hasMore: parsed.hasMore,
+      searchInput: typeof parsed.searchInput === 'string' ? parsed.searchInput : '',
+      category: typeof parsed.category === 'string' ? parsed.category : 'Todas',
+      condition:
+        parsed.condition === 'new' ||
+        parsed.condition === 'used_good' ||
+        parsed.condition === 'Todas'
+          ? parsed.condition
+          : 'Todas',
+      stockFilter:
+        parsed.stockFilter === 'in' ||
+        parsed.stockFilter === 'out' ||
+        parsed.stockFilter === 'all'
+          ? parsed.stockFilter
+          : 'all',
+    };
+  } catch {
+    return null;
+  }
+}
 
-  return [
-    product.name,
-    product.creatorOrAuthor,
-    product.brandPublisherLabel,
-    product.barcode,
-    product.sku,
-    product.isbn,
-    product.notes,
-  ].some((field) => normalize(field).includes(normalizedQuery));
+function writeInventoryListCache(cache: InventoryListCache) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  try {
+    window.sessionStorage.setItem(
+      getInventoryListCacheKey(cache.statusFilter),
+      JSON.stringify(cache),
+    );
+  } catch {
+    // Ignore write errors (private mode/storage quota).
+  }
 }
 
 function stockBadgeClasses(stock: number) {
@@ -323,30 +384,31 @@ function StockCorrectionModal({
 
 export function ProductList({
   categories,
-  products,
+  initialProducts,
+  initialHasMore,
   loadError,
   statusFilter,
   deepLinkSelection,
   deepLinkOpenStockCorrection = false,
+  deepLinkProduct = null,
 }: ProductListProps) {
   const router = useRouter();
+  const initialCache = readInventoryListCache(statusFilter);
   const normalizedDeepLinkSelection = deepLinkSelection?.trim() ?? null;
-  const deepLinkProduct =
-    normalizedDeepLinkSelection === null
-      ? null
-      : (products.find((item) => item.id === normalizedDeepLinkSelection) ?? null);
   const canOpenDeepLinkStockCorrection =
     deepLinkOpenStockCorrection && deepLinkProduct?.isActive === true;
   const [stockOverrides, setStockOverrides] = useState<Record<string, number>>(
     {},
   );
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('Todas');
+  const [searchInput, setSearchInput] = useState(initialCache?.searchInput ?? '');
+  const [category, setCategory] = useState<string>(initialCache?.category ?? 'Todas');
   const [condition, setCondition] = useState<ProductConditionValue | 'Todas'>(
-    'Todas',
+    initialCache?.condition ?? 'Todas',
   );
   const [stockFilter, setStockFilter] =
-    useState<(typeof stockFilters)[number]['value']>('all');
+    useState<(typeof stockFilters)[number]['value']>(
+      initialCache?.stockFilter ?? 'all',
+    );
   const [selectedProductId, setSelectedProductId] = useState<string | null>(
     normalizedDeepLinkSelection,
   );
@@ -361,32 +423,180 @@ export function ProductList({
   );
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [movementsError, setMovementsError] = useState<string | null>(null);
+  const [products, setProducts] = useState<Product[]>(
+    initialCache?.products ?? initialProducts,
+  );
+  const [hasMore, setHasMore] = useState<boolean>(
+    initialCache?.hasMore ?? initialHasMore,
+  );
+  const [pageLoading, setPageLoading] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
+
+  const fetchRequestIdRef = useRef(0);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const debounceTimerRef = useRef<number | null>(null);
+  const filtersRef = useRef({
+    search: '',
+    category: 'Todas' as string,
+    condition: 'Todas' as ProductConditionValue | 'Todas',
+    stockFilter: 'all' as InventoryStockFilter,
+    statusFilter,
+  });
+
+  useEffect(() => {
+    filtersRef.current = {
+      search: searchInput.trim(),
+      category,
+      condition,
+      stockFilter,
+      statusFilter,
+    };
+  }, [searchInput, category, condition, stockFilter, statusFilter]);
+
+  useEffect(() => {
+    writeInventoryListCache({
+      version: 1,
+      statusFilter,
+      products,
+      hasMore,
+      searchInput,
+      category,
+      condition,
+      stockFilter,
+    });
+  }, [statusFilter, products, hasMore, searchInput, category, condition, stockFilter]);
+
+  const fetchPage = useCallback(
+    async (params: {
+      search: string;
+      category: string;
+      condition: ProductConditionValue | 'Todas';
+      stockFilter: InventoryStockFilter;
+      statusFilter: InventoryStatusFilter;
+      offset: number;
+      append: boolean;
+    }) => {
+      const requestId = ++fetchRequestIdRef.current;
+      setPageLoading(true);
+      setPageError(null);
+
+      const result = await loadInventoryProductsPage({
+        status: params.statusFilter,
+        search: params.search,
+        categoryId: params.category === 'Todas' ? null : params.category,
+        condition: params.condition === 'Todas' ? null : params.condition,
+        stockFilter: params.stockFilter,
+        offset: params.offset,
+      });
+
+      if (requestId !== fetchRequestIdRef.current) {
+        return;
+      }
+
+      if (result.status === 'error') {
+        setPageError(result.message);
+        if (!params.append) {
+          setProducts([]);
+          setHasMore(false);
+        }
+        setPageLoading(false);
+        return;
+      }
+
+      setProducts((current) =>
+        params.append ? [...current, ...result.products] : result.products,
+      );
+      setHasMore(result.hasMore);
+      setPageLoading(false);
+    },
+    [],
+  );
+
+  const cancelPendingDebounce = useCallback(() => {
+    if (debounceTimerRef.current !== null) {
+      window.clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+  }, []);
+
+  const refetchFirstPageNow = useCallback(
+    (overrides?: Partial<typeof filtersRef.current>) => {
+      cancelPendingDebounce();
+      const params = { ...filtersRef.current, ...overrides };
+      void fetchPage({ ...params, offset: 0, append: false });
+    },
+    [cancelPendingDebounce, fetchPage],
+  );
+
+  const refetchFirstPageDebounced = useCallback(
+    (overrides?: Partial<typeof filtersRef.current>) => {
+      cancelPendingDebounce();
+      const snapshot = { ...filtersRef.current, ...overrides };
+      debounceTimerRef.current = window.setTimeout(() => {
+        debounceTimerRef.current = null;
+        void fetchPage({ ...snapshot, offset: 0, append: false });
+      }, 250);
+    },
+    [cancelPendingDebounce, fetchPage],
+  );
+
+  useEffect(() => () => cancelPendingDebounce(), [cancelPendingDebounce]);
+
+  useEffect(() => {
+    if (!hasMore || pageLoading) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          void fetchPage({
+            ...filtersRef.current,
+            offset: products.length,
+            append: true,
+          });
+        }
+      },
+      { rootMargin: '200px 0px' },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, pageLoading, products.length, fetchPage]);
 
   const clientProducts = useMemo(() => {
+    const list =
+      deepLinkProduct && !products.some((p) => p.id === deepLinkProduct.id)
+        ? [deepLinkProduct, ...products]
+        : products;
+
     if (Object.keys(stockOverrides).length === 0) {
-      return products;
+      return list;
     }
 
-    return products.map((product) => {
+    return list.map((product) => {
       const override = stockOverrides[product.id];
       return typeof override === 'number'
         ? { ...product, currentStock: override }
         : product;
     });
-  }, [products, stockOverrides]);
+  }, [deepLinkProduct, products, stockOverrides]);
 
   const selectedProduct =
     selectedProductId === null
       ? null
       : (clientProducts.find((product) => product.id === selectedProductId) ??
-        null);
+        (deepLinkProduct?.id === selectedProductId ? deepLinkProduct : null));
 
   const stockCorrectionProduct =
     stockCorrectionProductId === null
       ? null
       : (clientProducts.find(
           (product) => product.id === stockCorrectionProductId,
-        ) ?? null);
+        ) ??
+        (deepLinkProduct?.id === stockCorrectionProductId
+          ? deepLinkProduct
+          : null));
 
   const fetchMovements = useCallback(async (productId: string) => {
     try {
@@ -412,10 +622,17 @@ export function ProductList({
     setStockCorrectionSession((value) => value + 1);
   }, []);
 
-  const handleSelectProductId = useCallback((productId: string) => {
-    setSelectedProductId(productId);
-    void fetchMovements(productId);
-  }, [fetchMovements]);
+  const handleSelectProductId = useCallback(
+    (productId: string) => {
+      setSelectedProductId(productId);
+      void fetchMovements(productId);
+    },
+    [fetchMovements],
+  );
+
+  const reloadAfterMutation = useCallback(() => {
+    refetchFirstPageNow();
+  }, [refetchFirstPageNow]);
 
   useEffect(() => {
     if (!deepLinkSelection && !deepLinkOpenStockCorrection) {
@@ -424,25 +641,24 @@ export function ProductList({
     router.replace(`/inventory?estado=${statusFilter}`);
   }, [deepLinkOpenStockCorrection, deepLinkSelection, router, statusFilter]);
 
-  const filteredProducts = useMemo(() => {
-    return clientProducts.filter((product) => {
-      const matchesCategory =
-        category === 'Todas' || product.categoryId === category;
-      const matchesCondition =
-        condition === 'Todas' || product.condition === condition;
-      const matchesStock =
-        stockFilter === 'all' ||
-        (stockFilter === 'in' && product.currentStock > 0) ||
-        (stockFilter === 'out' && product.currentStock === 0);
-
-      return (
-        matchesCategory &&
-        matchesCondition &&
-        matchesStock &&
-        productMatchesSearch(product, search)
-      );
-    });
-  }, [category, condition, clientProducts, search, stockFilter]);
+  useEffect(() => {
+    if (
+      !canOpenDeepLinkStockCorrection ||
+      !normalizedDeepLinkSelection ||
+      !deepLinkProduct
+    ) {
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      void fetchMovements(normalizedDeepLinkSelection);
+    }, 0);
+    return () => window.clearTimeout(handle);
+  }, [
+    canOpenDeepLinkStockCorrection,
+    deepLinkProduct,
+    fetchMovements,
+    normalizedDeepLinkSelection,
+  ]);
 
   return (
     <section className="space-y-4">
@@ -461,6 +677,12 @@ export function ProductList({
       {loadError ? (
         <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-900">
           No se pudo cargar Supabase: {loadError}
+        </p>
+      ) : null}
+
+      {pageError ? (
+        <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-900">
+          {pageError}
         </p>
       ) : null}
 
@@ -493,8 +715,12 @@ export function ProductList({
               Buscar producto
             </span>
             <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              value={searchInput}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                setSearchInput(nextValue);
+                refetchFirstPageDebounced({ search: nextValue.trim() });
+              }}
               placeholder="Ej. Borges, Factory, SKU o ISBN"
               className="field-control mt-2 text-sm"
               type="search"
@@ -528,7 +754,11 @@ export function ProductList({
             </span>
             <select
               value={category}
-              onChange={(event) => setCategory(event.target.value)}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                setCategory(nextValue);
+                refetchFirstPageNow({ category: nextValue });
+              }}
               className="field-control mt-2 text-sm"
             >
               <option value="Todas">Todas</option>
@@ -544,11 +774,13 @@ export function ProductList({
             <span className="text-sm font-semibold text-stone-800">Estado</span>
             <select
               value={condition}
-              onChange={(event) =>
-                setCondition(
-                  event.target.value as ProductConditionValue | 'Todas',
-                )
-              }
+              onChange={(event) => {
+                const nextValue = event.target.value as
+                  | ProductConditionValue
+                  | 'Todas';
+                setCondition(nextValue);
+                refetchFirstPageNow({ condition: nextValue });
+              }}
               className="field-control mt-2 text-sm"
             >
               <option value="Todas">Todas</option>
@@ -566,11 +798,12 @@ export function ProductList({
             </span>
             <select
               value={stockFilter}
-              onChange={(event) =>
-                setStockFilter(
-                  event.target.value as (typeof stockFilters)[number]['value'],
-                )
-              }
+              onChange={(event) => {
+                const nextValue = event.target
+                  .value as (typeof stockFilters)[number]['value'];
+                setStockFilter(nextValue);
+                refetchFirstPageNow({ stockFilter: nextValue });
+              }}
               className="field-control mt-2 text-sm"
             >
               {stockFilters.map((item) => (
@@ -598,9 +831,9 @@ export function ProductList({
             <span className="text-right">Precio</span>
           </div>
 
-          {filteredProducts.length > 0 ? (
+          {clientProducts.length > 0 ? (
             <div className="divide-y divide-stone-200 bg-white">
-              {filteredProducts.map((product) => (
+              {clientProducts.map((product) => (
                 <button
                   key={product.id}
                   type="button"
@@ -659,44 +892,73 @@ export function ProductList({
           ) : (
             <div className="bg-white px-6 py-12 text-center">
               <p className="text-lg font-bold text-stone-950">
-                {products.length === 0
-                  ? 'Todavía no hay productos'
+                {pageLoading
+                  ? 'Cargando productos…'
                   : 'No hay productos que coincidan'}
               </p>
-              {products.length > 0 && (
-                <p className="mx-auto mt-2 max-w-md text-sm text-stone-600">
-                  Prueba con otro término de búsqueda o cambia los filtros de
-                  categoría, estado y disponibilidad.
-                </p>
-              )}
-              {products.length === 0 ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="mt-4"
-                  onClick={() =>
-                    router.push(`/inventory/new?estado=${statusFilter}`)
-                  }
-                >
-                  Añadir producto
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="mt-4"
-                  onClick={() => {
-                    setSearch('');
-                    setCategory('Todas');
-                    setCondition('Todas');
-                    setStockFilter('all');
-                  }}
-                >
-                  Limpiar filtros
-                </Button>
-              )}
+              {!pageLoading ? (
+                <>
+                  <p className="mx-auto mt-2 max-w-md text-sm text-stone-600">
+                    Prueba con otro término de búsqueda o cambia los filtros de
+                    categoría, estado y disponibilidad.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="mt-4"
+                    onClick={() => {
+                      setSearchInput('');
+                      setCategory('Todas');
+                      setCondition('Todas');
+                      setStockFilter('all');
+                      refetchFirstPageNow({
+                        search: '',
+                        category: 'Todas',
+                        condition: 'Todas',
+                        stockFilter: 'all',
+                      });
+                    }}
+                  >
+                    Limpiar filtros
+                  </Button>
+                </>
+              ) : null}
             </div>
           )}
+
+          {hasMore || pageLoading ? (
+            <div
+              ref={sentinelRef}
+              className="flex flex-col items-center gap-2 bg-white px-3 py-3"
+            >
+              {pageLoading ? (
+                <p className="text-sm font-medium text-stone-600">
+                  Cargando productos…
+                </p>
+              ) : hasMore ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="text-sm"
+                  onClick={() =>
+                    void fetchPage({
+                      ...filtersRef.current,
+                      offset: products.length,
+                      append: true,
+                    })
+                  }
+                >
+                  Cargar más
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {!hasMore && !pageLoading && clientProducts.length >= INVENTORY_PAGE_SIZE ? (
+            <p className="bg-white px-3 py-3 text-center text-xs font-medium text-stone-500">
+              No hay más productos.
+            </p>
+          ) : null}
         </div>
 
         {selectedProduct ? (
@@ -762,12 +1024,11 @@ export function ProductList({
                         isActive: false,
                       });
                       if (result.status === 'success') {
-                        router.refresh();
                         setSelectedProductId(null);
                         setMovements([]);
                         setMovementsError(null);
+                        reloadAfterMutation();
                       } else {
-                        // Reutilizamos el banner de error global si existe; si no, alert simple.
                         window.alert(result.message);
                       }
                     }}
@@ -789,7 +1050,7 @@ export function ProductList({
                         isActive: true,
                       });
                       if (result.status === 'success') {
-                        router.refresh();
+                        reloadAfterMutation();
                       } else {
                         window.alert(result.message);
                       }

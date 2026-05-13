@@ -18,6 +18,12 @@ import {
   type Product,
   type ProductConditionValue,
 } from "@/lib/inventory/types";
+import {
+  getInventoryData,
+  type InventoryStatusFilter,
+  type InventoryStockFilter,
+} from "@/lib/inventory/data";
+import { INVENTORY_PAGE_SIZE } from "@/lib/inventory/pagination";
 import type {
   DuplicateProductMatch,
   DuplicateProductMatchStrength,
@@ -395,6 +401,40 @@ function fallbackProduct(values: ProductFormValues): Omit<Product, "id" | "creat
     isbn: values.isbn,
     notes: values.notes,
   };
+}
+
+export type LoadInventoryProductsPageInput = {
+  status: InventoryStatusFilter;
+  search: string;
+  categoryId: string | null;
+  condition: ProductConditionValue | null;
+  stockFilter: InventoryStockFilter;
+  offset: number;
+};
+
+export type LoadInventoryProductsPageResult =
+  | { status: "success"; products: Product[]; hasMore: boolean }
+  | { status: "error"; message: string };
+
+export async function loadInventoryProductsPage(
+  input: LoadInventoryProductsPageInput,
+): Promise<LoadInventoryProductsPageResult> {
+  const { products, hasMore, error } = await getInventoryData({
+    status: input.status,
+    search: input.search,
+    categoryId: input.categoryId,
+    condition: input.condition,
+    stockFilter: input.stockFilter,
+    offset: Math.max(0, input.offset),
+    limit: INVENTORY_PAGE_SIZE,
+    includeCategories: false,
+  });
+
+  if (error) {
+    return { status: "error", message: error };
+  }
+
+  return { status: "success", products, hasMore };
 }
 
 export async function setProductActiveStatus(input: {

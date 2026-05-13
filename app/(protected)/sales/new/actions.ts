@@ -5,6 +5,7 @@ import { perfTime } from "@/lib/perf/log";
 import { createClient } from "@/lib/supabase/server";
 import { shouldQuerySupabaseTables } from "@/lib/supabase/should-query-supabase-tables";
 import type { SupabaseTableClient } from "@/lib/inventory/supabase-types";
+import { SALES_NEW_PAGE_SIZE } from "@/lib/inventory/pagination";
 
 type PaymentMethod = "manual_sumup" | "cash";
 
@@ -29,8 +30,62 @@ export type SaleProduct = {
 };
 
 type ListProductsResult =
-  | { status: "success"; products: SaleProduct[]; source: "supabase" | "mock" }
-  | { status: "error"; message: string; products: SaleProduct[]; source: "supabase" | "mock" };
+  | {
+      status: "success";
+      products: SaleProduct[];
+      hasMore: boolean;
+      source: "supabase" | "mock";
+    }
+  | {
+      status: "error";
+      message: string;
+      products: SaleProduct[];
+      hasMore: boolean;
+      source: "supabase" | "mock";
+    };
+
+export type ListActiveProductsForSaleInput = {
+  search?: string;
+  offset?: number;
+};
+
+const SALE_SEARCH_FIELDS = [
+  "name",
+  "creator_or_author",
+  "barcode",
+  "sku",
+  "isbn",
+] as const;
+
+function escapeIlikePattern(value: string) {
+  return value.replace(/([\\%_,()"])/g, "\\$1");
+}
+
+function buildSearchOrFilter(term: string, fields: readonly string[]) {
+  const escaped = escapeIlikePattern(term);
+  return fields.map((field) => `${field}.ilike.*${escaped}*`).join(",");
+}
+
+function removeAccents(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizeForMatch(value: string) {
+  return removeAccents(value).toLocaleLowerCase("es").trim();
+}
+
+function mockMatchesSearch(product: SaleProduct, search: string) {
+  const normalized = normalizeForMatch(search);
+  if (!normalized) return true;
+  return [
+    product.title,
+    product.creator,
+    product.category,
+    product.barcode,
+    product.sku,
+    product.isbn ?? "",
+  ].some((field) => normalizeForMatch(field).includes(normalized));
+}
 
 type ConfirmSaleInput = {
   items: Array<{ productId: string; quantity: number }>;
@@ -122,9 +177,24 @@ function assertPaymentMethod(value: unknown): value is PaymentMethod {
   return value === "manual_sumup" || value === "cash";
 }
 
-export async function listActiveProductsForSale(): Promise<ListProductsResult> {
+export async function listActiveProductsForSale(
+  input?: ListActiveProductsForSaleInput,
+): Promise<ListProductsResult> {
+  const search = input?.search?.trim() ?? "";
+  const offset = Math.max(0, input?.offset ?? 0);
+  const limit = SALES_NEW_PAGE_SIZE;
+
   if (!shouldQuerySupabaseTables()) {
-    return { status: "success", products: mockedProducts, source: "mock" };
+    const filtered = mockedProducts.filter((product) =>
+      mockMatchesSearch(product, search),
+    );
+    const page = filtered.slice(offset, offset + limit);
+    return {
+      status: "success",
+      products: page,
+      hasMore: filtered.length > offset + page.length,
+      source: "mock",
+    };
   }
 
   type ProductRow = {
@@ -141,21 +211,35 @@ export async function listActiveProductsForSale(): Promise<ListProductsResult> {
   };
 
   const supabase = (await createClient() as unknown) as SupabaseSalesClient;
-  const { data, error } = await perfTime("sales-new", "products", async () =>
-    supabase
+  const { data, error } = await perfTime("sales-new", "products", async () => {
+    let query = supabase
       .from<ProductRow>("products")
       .select(
         "id, name, creator_or_author, price, current_stock, barcode, sku, isbn, is_active, categories(name)",
       )
-      .eq("is_active", true)
-      .order("name", { ascending: true }),
-  );
+      .eq("is_active", true);
+
+    if (search) {
+      query = query.or(buildSearchOrFilter(search, SALE_SEARCH_FIELDS));
+    }
+
+    return query
+      .order("name", { ascending: true })
+      .range(offset, offset + limit - 1);
+  });
 
   if (error) {
-    return { status: "error", message: error.message, products: [], source: "supabase" };
+    return {
+      status: "error",
+      message: error.message,
+      products: [],
+      hasMore: false,
+      source: "supabase",
+    };
   }
 
-  const products: SaleProduct[] = (data ?? []).map((row: ProductRow) => ({
+  const rows = data ?? [];
+  const products: SaleProduct[] = rows.map((row: ProductRow) => ({
     id: row.id,
     title: row.name ?? "",
     creator: row.creator_or_author ?? "",
@@ -167,7 +251,12 @@ export async function listActiveProductsForSale(): Promise<ListProductsResult> {
     isbn: row.isbn ?? undefined,
   }));
 
-  return { status: "success", products, source: "supabase" };
+  return {
+    status: "success",
+    products,
+    hasMore: rows.length === limit,
+    source: "supabase",
+  };
 }
 
 export async function confirmSale(input: ConfirmSaleInput): Promise<ConfirmSaleResult> {
