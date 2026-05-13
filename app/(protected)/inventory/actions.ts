@@ -78,6 +78,7 @@ type DuplicateCandidate = {
   name: string;
   creatorOrAuthor: string;
   brandPublisherLabel: string;
+  categoryId: string | null;
   categoryName: string;
   condition: string | null;
   currentStock: number;
@@ -165,6 +166,12 @@ function buildDuplicateMatch(input: {
     strength = "strong";
   }
 
+  const sameCategory =
+    values.categoryId.length > 0 &&
+    candidate.categoryId !== null &&
+    candidate.categoryId.length > 0 &&
+    values.categoryId === candidate.categoryId;
+
   const inputName = normalizeText(values.name);
   const candidateName = normalizeText(candidate.name);
   const namesEqual = inputName.length > 0 && inputName === candidateName;
@@ -175,28 +182,42 @@ function buildDuplicateMatch(input: {
   const namesFirstWordsMatch = firstSignificantWordsMatch(values.name, candidate.name);
   const nameLooksSimilar = namesEqual || namesInclude || namesFirstWordsMatch;
 
-  if (nameLooksSimilar) {
-    reasons.push("Nombre o título parecido");
-  }
-
   const inputCreator = normalizeText(values.creatorOrAuthor);
   const candidateCreator = normalizeText(candidate.creatorOrAuthor);
-  if (inputCreator && candidateCreator && inputCreator === candidateCreator) {
-    reasons.push("Mismo creador o autor");
-  }
+  const sameCreator =
+    inputCreator.length > 0 &&
+    candidateCreator.length > 0 &&
+    inputCreator === candidateCreator;
 
   const inputBrand = normalizeText(values.brandPublisherLabel);
   const candidateBrand = normalizeText(candidate.brandPublisherLabel);
-  if (inputBrand && candidateBrand && inputBrand === candidateBrand) {
-    reasons.push("Misma editorial, marca o sello");
+  const sameBrand =
+    inputBrand.length > 0 &&
+    candidateBrand.length > 0 &&
+    inputBrand === candidateBrand;
+
+  // Text-based duplicates require same category so a vinyl record named
+  // "St. Vincent" does not collide with a book named "Vincent".
+  const textDuplicateInSameCategory =
+    sameCategory && (namesEqual || (nameLooksSimilar && (sameCreator || sameBrand)));
+
+  if (textDuplicateInSameCategory) {
+    if (namesEqual) {
+      reasons.push("Nombre o título idéntico");
+    } else {
+      reasons.push("Nombre o título parecido");
+    }
+
+    if (sameCreator) {
+      reasons.push("Mismo creador o autor");
+    }
+
+    if (sameBrand) {
+      reasons.push("Misma editorial, marca o sello");
+    }
   }
 
-  const shouldIncludeAsPossible =
-    nameLooksSimilar ||
-    (inputCreator && candidateCreator && inputCreator === candidateCreator && namesInclude) ||
-    (inputBrand && candidateBrand && inputBrand === candidateBrand && namesInclude);
-
-  if (strength !== "strong" && !shouldIncludeAsPossible) {
+  if (strength !== "strong" && !textDuplicateInSameCategory) {
     return null;
   }
 
@@ -503,6 +524,7 @@ export async function createProduct(
           name: product.name,
           creatorOrAuthor: product.creatorOrAuthor,
           brandPublisherLabel: product.brandPublisherLabel,
+          categoryId: product.categoryId,
           categoryName: product.categoryName,
           condition: product.condition,
           currentStock: product.currentStock,
@@ -528,6 +550,7 @@ export async function createProduct(
         name: string;
         creator_or_author: string | null;
         brand_publisher_label: string | null;
+        category_id: string | null;
         condition: string | null;
         current_stock: number;
         price: number | string | null;
@@ -542,7 +565,7 @@ export async function createProduct(
       const { data: duplicateRows, error: duplicateError } = await supabase
         .from<DuplicateProductRow>("products")
         .select(
-          "id, name, creator_or_author, brand_publisher_label, condition, current_stock, price, barcode, sku, isbn, is_active, categories:category_id(name)",
+          "id, name, creator_or_author, brand_publisher_label, category_id, condition, current_stock, price, barcode, sku, isbn, is_active, categories:category_id(name)",
         )
         .order("updated_at", { ascending: false });
 
@@ -562,6 +585,7 @@ export async function createProduct(
           name: row.name,
           creatorOrAuthor: row.creator_or_author ?? "",
           brandPublisherLabel: row.brand_publisher_label ?? "",
+          categoryId: row.category_id,
           categoryName: row.categories?.name ?? "Sin categoría",
           condition: row.condition,
           currentStock: row.current_stock,
