@@ -523,7 +523,7 @@ export function ProductList({
     (overrides?: Partial<typeof filtersRef.current>) => {
       cancelPendingDebounce();
       const params = { ...filtersRef.current, ...overrides };
-      void fetchPage({ ...params, offset: 0, append: false });
+      return fetchPage({ ...params, offset: 0, append: false });
     },
     [cancelPendingDebounce, fetchPage],
   );
@@ -631,7 +631,7 @@ export function ProductList({
   );
 
   const reloadAfterMutation = useCallback(() => {
-    refetchFirstPageNow();
+    return refetchFirstPageNow();
   }, [refetchFirstPageNow]);
 
   useEffect(() => {
@@ -705,6 +705,21 @@ export function ProductList({
           } else if (selectedProduct) {
             void fetchMovements(selectedProduct.id);
           }
+
+          // Refetch the filtered first page so the list reflects the new
+          // stock value against the active availability filter, and drop
+          // the optimistic override once fresh server data has arrived.
+          void reloadAfterMutation().then(() => {
+            if (!update) return;
+            setStockOverrides((current) => {
+              if (!(update.productId in current)) {
+                return current;
+              }
+              const next = { ...current };
+              delete next[update.productId];
+              return next;
+            });
+          });
         }}
       />
 
