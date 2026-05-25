@@ -11,7 +11,10 @@ import {
   createProduct,
   updateProduct,
 } from '@/app/(protected)/inventory/actions';
-import { initialProductFormState } from '@/app/(protected)/inventory/product-form-state';
+import {
+  initialProductFormState,
+  type ProductFormDraft,
+} from '@/app/(protected)/inventory/product-form-state';
 import { Button, LinkButton } from '../ui/button';
 
 const conditionLabels: Record<ProductConditionValue, string> = {
@@ -25,8 +28,27 @@ const conditionOptions: Array<{ value: ProductConditionValue; label: string }> =
     { value: 'used_good', label: 'Segunda mano' },
   ];
 
-function numberInputValue(value: number | null) {
-  return value === null ? '' : String(value);
+type FormFields = ProductFormDraft;
+
+function formFieldsFromProduct(product: Product | null): FormFields {
+  return {
+    name: product?.name ?? '',
+    categoryId: product?.categoryId ?? '',
+    price: product?.price !== undefined ? String(product.price) : '',
+    initialStock: '0',
+    creatorOrAuthor: product?.creatorOrAuthor ?? '',
+    brandPublisherLabel: product?.brandPublisherLabel ?? '',
+    costPrice:
+      product?.costPrice === null || product?.costPrice === undefined
+        ? ''
+        : String(product.costPrice),
+    condition: product?.condition ?? '',
+    supplier: product?.supplier ?? '',
+    barcode: product?.barcode ?? '',
+    sku: product?.sku ?? '',
+    isbn: product?.isbn ?? '',
+    notes: product?.notes ?? '',
+  };
 }
 
 function formatCurrency(value: number) {
@@ -84,9 +106,15 @@ export function ProductForm({
     action,
     initialProductFormState,
   );
+  const [localFields, setLocalFields] = useState<FormFields>(() =>
+    formFieldsFromProduct(product),
+  );
   const [dismissedWarningKey, setDismissedWarningKey] = useState<string | null>(
     null,
   );
+  const [duplicateAcknowledged, setDuplicateAcknowledged] = useState(false);
+  const [fieldOverride, setFieldOverride] = useState<FormFields | null>(null);
+
   const fieldErrors = state.fieldErrors ?? {};
   const duplicateWarning = state.duplicateWarning;
   const duplicateMatches = useMemo(
@@ -105,6 +133,8 @@ export function ProductForm({
       duplicateMatches.length &&
       dismissedWarningKey !== duplicateWarningKey,
   );
+  const draftFingerprint = state.draft ? JSON.stringify(state.draft) : null;
+  const fields = fieldOverride ?? state.draft ?? localFields;
 
   const returnStatus = useMemo(() => {
     if (returnTo.includes('estado=archived')) {
@@ -117,10 +147,41 @@ export function ProductForm({
   }, [returnTo]);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- sync server action draft */
+    setFieldOverride(null);
+    if (state.draft) {
+      setLocalFields(state.draft);
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [draftFingerprint, state.draft]);
+
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- new duplicate match set */
+    setDismissedWarningKey(null);
+    setDuplicateAcknowledged(false);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [duplicateWarningKey]);
+
+  useEffect(() => {
     if (state.status === 'success') {
       router.push(returnTo);
     }
   }, [router, returnTo, state.status]);
+
+  function updateField<Key extends keyof FormFields>(
+    key: Key,
+    value: FormFields[Key],
+  ) {
+    const base = fieldOverride ?? state.draft ?? localFields;
+    const next = { ...base, [key]: value };
+    setFieldOverride(next);
+    setLocalFields(next);
+  }
+
+  function hideDuplicateWarning() {
+    setDismissedWarningKey(duplicateWarningKey);
+    setDuplicateAcknowledged(true);
+  }
 
   return (
     <div className="rounded-lg border border-stone-200 bg-white p-4">
@@ -147,7 +208,7 @@ export function ProductForm({
               ? 'bg-emerald-100 text-emerald-900'
               : shouldShowDuplicateWarning
                 ? 'bg-amber-100 text-amber-900'
-              : 'bg-red-100 text-red-900'
+                : 'bg-red-100 text-red-900'
           }`}
           role="status"
         >
@@ -249,11 +310,15 @@ export function ProductForm({
         {product ? (
           <input type="hidden" name="productId" value={product.id} />
         ) : null}
+        {duplicateAcknowledged ? (
+          <input type="hidden" name="duplicateConfirmed" value="1" />
+        ) : null}
 
         <Field label="Nombre" error={fieldErrors.name} required>
           <input
             name="name"
-            defaultValue={product?.name ?? ''}
+            value={fields.name}
+            onChange={(event) => updateField('name', event.target.value)}
             required
             className="field-control"
           />
@@ -262,7 +327,8 @@ export function ProductForm({
         <Field label="Categoría" error={fieldErrors.categoryId} required>
           <select
             name="categoryId"
-            defaultValue={product?.categoryId ?? ''}
+            value={fields.categoryId}
+            onChange={(event) => updateField('categoryId', event.target.value)}
             required
             className="field-control"
           >
@@ -281,7 +347,8 @@ export function ProductForm({
             type="number"
             min="0"
             step="0.01"
-            defaultValue={product?.price ?? ''}
+            value={fields.price}
+            onChange={(event) => updateField('price', event.target.value)}
             required
             className="field-control"
           />
@@ -305,7 +372,10 @@ export function ProductForm({
               type="number"
               min="0"
               step="1"
-              defaultValue="0"
+              value={fields.initialStock}
+              onChange={(event) =>
+                updateField('initialStock', event.target.value)
+              }
               required
               className="field-control"
             />
@@ -315,7 +385,10 @@ export function ProductForm({
         <Field label="Creador / autor">
           <input
             name="creatorOrAuthor"
-            defaultValue={product?.creatorOrAuthor ?? ''}
+            value={fields.creatorOrAuthor}
+            onChange={(event) =>
+              updateField('creatorOrAuthor', event.target.value)
+            }
             className="field-control"
           />
         </Field>
@@ -323,7 +396,10 @@ export function ProductForm({
         <Field label="Editorial / marca / sello">
           <input
             name="brandPublisherLabel"
-            defaultValue={product?.brandPublisherLabel ?? ''}
+            value={fields.brandPublisherLabel}
+            onChange={(event) =>
+              updateField('brandPublisherLabel', event.target.value)
+            }
             className="field-control"
           />
         </Field>
@@ -334,7 +410,8 @@ export function ProductForm({
             type="number"
             min="0"
             step="0.01"
-            defaultValue={numberInputValue(product?.costPrice ?? null)}
+            value={fields.costPrice}
+            onChange={(event) => updateField('costPrice', event.target.value)}
             className="field-control"
           />
         </Field>
@@ -342,7 +419,8 @@ export function ProductForm({
         <Field label="Estado" error={fieldErrors.condition}>
           <select
             name="condition"
-            defaultValue={product?.condition ?? ''}
+            value={fields.condition}
+            onChange={(event) => updateField('condition', event.target.value)}
             className="field-control"
           >
             <option value="">Sin especificar</option>
@@ -357,7 +435,8 @@ export function ProductForm({
         <Field label="Proveedor">
           <input
             name="supplier"
-            defaultValue={product?.supplier ?? ''}
+            value={fields.supplier}
+            onChange={(event) => updateField('supplier', event.target.value)}
             className="field-control"
           />
         </Field>
@@ -365,7 +444,8 @@ export function ProductForm({
         <Field label="Código de barras">
           <input
             name="barcode"
-            defaultValue={product?.barcode ?? ''}
+            value={fields.barcode}
+            onChange={(event) => updateField('barcode', event.target.value)}
             className="field-control"
           />
         </Field>
@@ -373,7 +453,8 @@ export function ProductForm({
         <Field label="SKU">
           <input
             name="sku"
-            defaultValue={product?.sku ?? ''}
+            value={fields.sku}
+            onChange={(event) => updateField('sku', event.target.value)}
             className="field-control"
           />
         </Field>
@@ -381,7 +462,8 @@ export function ProductForm({
         <Field label="ISBN">
           <input
             name="isbn"
-            defaultValue={product?.isbn ?? ''}
+            value={fields.isbn}
+            onChange={(event) => updateField('isbn', event.target.value)}
             className="field-control"
           />
         </Field>
@@ -389,7 +471,8 @@ export function ProductForm({
         <Field label="Notas" className="lg:col-span-2">
           <textarea
             name="notes"
-            defaultValue={product?.notes ?? ''}
+            value={fields.notes}
+            onChange={(event) => updateField('notes', event.target.value)}
             className="field-control min-h-28"
           />
         </Field>
@@ -402,6 +485,7 @@ export function ProductForm({
               value="1"
               variant="secondary"
               disabled={pending}
+              onClick={() => setDuplicateAcknowledged(true)}
             >
               Crear de todos modos
             </Button>
@@ -410,20 +494,21 @@ export function ProductForm({
             <Button
               type="button"
               variant="secondary"
-              onClick={() => setDismissedWarningKey(duplicateWarningKey)}
+              onClick={hideDuplicateWarning}
+              disabled={pending}
+            >
+              Ocultar aviso
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => router.push(returnTo)}
               disabled={pending}
             >
               Cancelar
             </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => router.push(returnTo)}
-            disabled={pending}
-          >
-            Cancelar
-          </Button>
+          )}
           <Button type="submit" disabled={pending}>
             {pending ? 'Guardando…' : 'Guardar producto'}
           </Button>

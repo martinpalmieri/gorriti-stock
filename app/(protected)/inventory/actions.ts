@@ -24,9 +24,9 @@ import {
   type InventoryStockFilter,
 } from "@/lib/inventory/data";
 import { INVENTORY_PAGE_SIZE } from "@/lib/inventory/pagination";
+import { collectDuplicateMatches } from "@/lib/inventory/duplicate-detection";
 import type {
-  DuplicateProductMatch,
-  DuplicateProductMatchStrength,
+  ProductFormDraft,
   ProductFormState,
 } from "./product-form-state";
 
@@ -73,213 +73,44 @@ type ProductFormValues = {
   notes: string;
 };
 
-type DuplicateCandidate = {
-  id: string;
-  name: string;
-  creatorOrAuthor: string;
-  brandPublisherLabel: string;
-  categoryId: string | null;
-  categoryName: string;
-  condition: string | null;
-  currentStock: number;
-  price: number;
-  barcode: string;
-  sku: string;
-  isbn: string;
-  isActive: boolean;
-};
-
 function optionalText(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function removeAccents(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-function normalizeText(value: string) {
-  return removeAccents(value)
-    .toLocaleLowerCase("es")
-    .trim()
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
-    .replace(/\s+/g, " ");
-}
-
-function normalizeIdentifier(value: string) {
-  return removeAccents(value)
-    .toLocaleLowerCase("es")
-    .trim()
-    .replace(/[^\p{L}\p{N}]/gu, "");
-}
-
-function getSignificantWords(value: string) {
-  return normalizeText(value)
-    .split(" ")
-    .map((word) => word.trim())
-    .filter((word) => word.length >= 3);
-}
-
-function firstSignificantWordsMatch(left: string, right: string) {
-  const leftWords = getSignificantWords(left);
-  const rightWords = getSignificantWords(right);
-  if (leftWords.length === 0 || rightWords.length === 0) {
-    return false;
-  }
-
-  const wordsToCheck = Math.min(2, leftWords.length, rightWords.length);
-  for (let index = 0; index < wordsToCheck; index += 1) {
-    if (leftWords[index] !== rightWords[index]) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-function buildDuplicateMatch(input: {
-  values: ProductFormValues;
-  candidate: DuplicateCandidate;
-}): DuplicateProductMatch | null {
-  const { values, candidate } = input;
-  const reasons: string[] = [];
-  let strength: DuplicateProductMatchStrength = "possible";
-
-  const inputIsbn = normalizeIdentifier(values.isbn);
-  const inputBarcode = normalizeIdentifier(values.barcode);
-  const inputSku = normalizeIdentifier(values.sku);
-  const candidateIsbn = normalizeIdentifier(candidate.isbn);
-  const candidateBarcode = normalizeIdentifier(candidate.barcode);
-  const candidateSku = normalizeIdentifier(candidate.sku);
-
-  if (inputIsbn && candidateIsbn && inputIsbn === candidateIsbn) {
-    reasons.push("ISBN idéntico");
-    strength = "strong";
-  }
-
-  if (inputBarcode && candidateBarcode && inputBarcode === candidateBarcode) {
-    reasons.push("Código de barras idéntico");
-    strength = "strong";
-  }
-
-  if (inputSku && candidateSku && inputSku === candidateSku) {
-    reasons.push("SKU idéntico");
-    strength = "strong";
-  }
-
-  const sameCategory =
-    values.categoryId.length > 0 &&
-    candidate.categoryId !== null &&
-    candidate.categoryId.length > 0 &&
-    values.categoryId === candidate.categoryId;
-
-  const inputName = normalizeText(values.name);
-  const candidateName = normalizeText(candidate.name);
-  const namesEqual = inputName.length > 0 && inputName === candidateName;
-  const namesInclude =
-    inputName.length > 0 &&
-    candidateName.length > 0 &&
-    (inputName.includes(candidateName) || candidateName.includes(inputName));
-  const namesFirstWordsMatch = firstSignificantWordsMatch(values.name, candidate.name);
-  const nameLooksSimilar = namesEqual || namesInclude || namesFirstWordsMatch;
-
-  const inputCreator = normalizeText(values.creatorOrAuthor);
-  const candidateCreator = normalizeText(candidate.creatorOrAuthor);
-  const sameCreator =
-    inputCreator.length > 0 &&
-    candidateCreator.length > 0 &&
-    inputCreator === candidateCreator;
-
-  const inputBrand = normalizeText(values.brandPublisherLabel);
-  const candidateBrand = normalizeText(candidate.brandPublisherLabel);
-  const sameBrand =
-    inputBrand.length > 0 &&
-    candidateBrand.length > 0 &&
-    inputBrand === candidateBrand;
-
-  // Text-based duplicates require same category so a vinyl record named
-  // "St. Vincent" does not collide with a book named "Vincent".
-  const textDuplicateInSameCategory =
-    sameCategory && (namesEqual || (nameLooksSimilar && (sameCreator || sameBrand)));
-
-  if (textDuplicateInSameCategory) {
-    if (namesEqual) {
-      reasons.push("Nombre o título idéntico");
-    } else {
-      reasons.push("Nombre o título parecido");
-    }
-
-    if (sameCreator) {
-      reasons.push("Mismo creador o autor");
-    }
-
-    if (sameBrand) {
-      reasons.push("Misma editorial, marca o sello");
-    }
-  }
-
-  if (strength !== "strong" && !textDuplicateInSameCategory) {
-    return null;
-  }
-
-  if (reasons.length === 0) {
-    return null;
-  }
-
+function productFormDraftFromFormData(formData: FormData): ProductFormDraft {
   return {
-    productId: candidate.id,
-    strength,
-    reasons,
-    isArchived: candidate.isActive !== true,
-    name: candidate.name,
-    creatorOrAuthor: candidate.creatorOrAuthor,
-    brandPublisherLabel: candidate.brandPublisherLabel,
-    categoryName: candidate.categoryName,
-    condition: candidate.condition,
-    currentStock: candidate.currentStock,
-    price: candidate.price,
-    barcode: candidate.barcode,
-    sku: candidate.sku,
-    isbn: candidate.isbn,
+    name: optionalText(formData.get("name")),
+    categoryId: optionalText(formData.get("categoryId")),
+    price: optionalText(formData.get("price")),
+    initialStock: optionalText(formData.get("initialStock")) || "0",
+    creatorOrAuthor: optionalText(formData.get("creatorOrAuthor")),
+    brandPublisherLabel: optionalText(formData.get("brandPublisherLabel")),
+    costPrice: optionalText(formData.get("costPrice")),
+    condition: optionalText(formData.get("condition")),
+    supplier: optionalText(formData.get("supplier")),
+    barcode: optionalText(formData.get("barcode")),
+    sku: optionalText(formData.get("sku")),
+    isbn: optionalText(formData.get("isbn")),
+    notes: optionalText(formData.get("notes")),
   };
 }
 
-function sortDuplicateMatches(matches: DuplicateProductMatch[]) {
-  return matches.sort((left, right) => {
-    if (left.strength !== right.strength) {
-      return left.strength === "strong" ? -1 : 1;
-    }
-
-    if (left.isArchived !== right.isArchived) {
-      return left.isArchived ? 1 : -1;
-    }
-
-    return left.name.localeCompare(right.name, "es");
-  });
-}
-
-function collectDuplicateMatches(
-  values: ProductFormValues,
-  candidates: DuplicateCandidate[],
-) {
-  const matches = candidates
-    .map((candidate) => buildDuplicateMatch({ values, candidate }))
-    .filter((match): match is DuplicateProductMatch => match !== null)
-    .filter((match) => {
-      if (!match.isArchived) {
-        return true;
-      }
-
-      return match.strength === "strong";
-    });
-
-  const uniqueByProduct = new Map<string, DuplicateProductMatch>();
-  for (const match of sortDuplicateMatches(matches)) {
-    if (!uniqueByProduct.has(match.productId)) {
-      uniqueByProduct.set(match.productId, match);
-    }
-  }
-
-  return Array.from(uniqueByProduct.values());
+function productFormDraftFromValues(values: ProductFormValues): ProductFormDraft {
+  return {
+    name: values.name,
+    categoryId: values.categoryId,
+    price: String(values.price),
+    initialStock: String(values.initialStock),
+    creatorOrAuthor: values.creatorOrAuthor,
+    brandPublisherLabel: values.brandPublisherLabel,
+    costPrice: values.costPrice === null ? "" : String(values.costPrice),
+    condition: values.condition ?? "",
+    supplier: values.supplier,
+    barcode: values.barcode,
+    sku: values.sku,
+    isbn: values.isbn,
+    notes: values.notes,
+  };
 }
 
 function optionalNumber(value: FormDataEntryValue | null) {
@@ -498,10 +329,11 @@ export async function setProductActiveStatus(input: {
 }
 
 export async function createProduct(
-  _previousState: ProductFormState,
+  previousState: ProductFormState,
   formData: FormData,
 ): Promise<ProductFormState> {
   const duplicateConfirmed = optionalText(formData.get("duplicateConfirmed")) === "1";
+  const draftFromSubmit = productFormDraftFromFormData(formData);
   const parsed = parseProductForm(formData, "create");
 
   if (!parsed.values) {
@@ -509,11 +341,15 @@ export async function createProduct(
       status: "error",
       message: "Revisa los campos marcados.",
       fieldErrors: parsed.fieldErrors,
-      duplicateWarning: null,
+      duplicateWarning: duplicateConfirmed
+        ? (previousState.duplicateWarning ?? null)
+        : null,
+      draft: draftFromSubmit,
     };
   }
 
   const values = parsed.values;
+  const draft = productFormDraftFromValues(values);
 
   if (!duplicateConfirmed) {
     if (!shouldQuerySupabaseTables()) {
@@ -542,6 +378,7 @@ export async function createProduct(
           message: "Ya existe un producto parecido en el inventario. Revisá antes de crear uno nuevo.",
           fieldErrors: {},
           duplicateWarning: { matches: duplicateMatches },
+          draft,
         };
       }
     } else {
@@ -575,6 +412,7 @@ export async function createProduct(
           message: duplicateError.message ?? "No se pudo verificar duplicados.",
           fieldErrors: {},
           duplicateWarning: null,
+          draft,
         };
       }
 
@@ -603,6 +441,7 @@ export async function createProduct(
           message: "Ya existe un producto parecido en el inventario. Revisá antes de crear uno nuevo.",
           fieldErrors: {},
           duplicateWarning: { matches: duplicateMatches },
+          draft,
         };
       }
     }
@@ -617,6 +456,7 @@ export async function createProduct(
       message: "Producto creado",
       fieldErrors: {},
       duplicateWarning: null,
+      draft: null,
     };
   }
 
@@ -646,7 +486,10 @@ export async function createProduct(
       status: "error",
       message: productError?.message ?? "No se pudo crear el producto.",
       fieldErrors: {},
-      duplicateWarning: null,
+      duplicateWarning: duplicateConfirmed
+        ? (previousState.duplicateWarning ?? null)
+        : null,
+      draft,
     };
   }
 
@@ -666,7 +509,10 @@ export async function createProduct(
       status: "error",
       message: stockError.message,
       fieldErrors: {},
-      duplicateWarning: null,
+      duplicateWarning: duplicateConfirmed
+        ? (previousState.duplicateWarning ?? null)
+        : null,
+      draft,
     };
   }
 
@@ -677,6 +523,7 @@ export async function createProduct(
     message: "Producto creado",
     fieldErrors: {},
     duplicateWarning: null,
+    draft: null,
   };
 }
 

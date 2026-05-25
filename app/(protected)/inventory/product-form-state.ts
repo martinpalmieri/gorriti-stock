@@ -1,3 +1,19 @@
+export type ProductFormDraft = {
+  name: string;
+  categoryId: string;
+  price: string;
+  initialStock: string;
+  creatorOrAuthor: string;
+  brandPublisherLabel: string;
+  costPrice: string;
+  condition: string;
+  supplier: string;
+  barcode: string;
+  sku: string;
+  isbn: string;
+  notes: string;
+};
+
 export type ProductFormState = {
   status: "idle" | "success" | "error";
   message: string;
@@ -5,6 +21,7 @@ export type ProductFormState = {
   duplicateWarning?: {
     matches: DuplicateProductMatch[];
   } | null;
+  draft?: ProductFormDraft | null;
 };
 
 export type DuplicateProductMatchStrength = "strong" | "possible";
@@ -31,4 +48,5 @@ export const initialProductFormState: ProductFormState = {
   message: "",
   fieldErrors: {},
   duplicateWarning: null,
+  draft: null,
 };
