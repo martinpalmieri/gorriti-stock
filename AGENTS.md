@@ -68,3 +68,19 @@ Stock changes happen through:
 - future restock/import flows
 
 Normal product editing must not directly change stock.
+
+## Agent skills
+
+This repo has local workflow skills in `skills/`.
+
+Before non-trivial work, pick the relevant skill:
+
+- `skills/grill-me.md` — clarify vague ideas before planning.
+- `skills/to-prd.md` — turn a clarified idea into requirements.
+- `skills/to-issues.md` — split requirements into small vertical tasks.
+- `skills/tdd.md` — implement risky logic behavior-first/test-first.
+- `skills/codebase-architecture-audit.md` — periodically inspect module boundaries and agent-friendliness.
+
+Use skills as process guidance, not runtime code.
+
+For tasks touching stock, sales, Supabase, auth, env vars, CSV export, archived products, or database migrations, explicitly mention which skill/checklist was applied.
