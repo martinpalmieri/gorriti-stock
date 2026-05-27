@@ -15,9 +15,11 @@ import {
 } from "@/lib/inventory/mock-store";
 import {
   allowedConditionValues,
+  type Category,
   type Product,
   type ProductConditionValue,
 } from "@/lib/inventory/types";
+import { validateMediaMetadataFields } from "@/lib/inventory/category-metadata-requirements";
 import {
   getInventoryData,
   type InventoryStatusFilter,
@@ -158,6 +160,7 @@ function requiredInteger(value: FormDataEntryValue | null) {
 function parseProductForm(
   formData: FormData,
   mode: "create" | "edit",
+  categorySlug: string | null,
 ): { values?: ProductFormValues; fieldErrors: ProductFormState["fieldErrors"] } {
   const fieldErrors: ProductFormState["fieldErrors"] = {};
   const name = optionalText(formData.get("name"));
@@ -167,6 +170,9 @@ function parseProductForm(
   const initialStockValue = optionalNumber(formData.get("initialStock"));
   const conditionValue = optionalText(formData.get("condition"));
   const condition = conditionValue === "" ? null : conditionValue;
+  const creatorOrAuthor = optionalText(formData.get("creatorOrAuthor"));
+  const brandPublisherLabel = optionalText(formData.get("brandPublisherLabel"));
+  const supplier = optionalText(formData.get("supplier"));
 
   if (!name) {
     fieldErrors.name = "El nombre es obligatorio.";
@@ -203,6 +209,19 @@ function parseProductForm(
     fieldErrors.condition = "El estado seleccionado no es válido.";
   }
 
+  Object.assign(
+    fieldErrors,
+    validateMediaMetadataFields({
+      categorySlug,
+      creatorOrAuthor,
+      brandPublisherLabel,
+      supplier,
+      condition: conditionValue
+        ? (conditionValue as ProductConditionValue)
+        : "",
+    }),
+  );
+
   if (Object.keys(fieldErrors).length > 0) {
     return { fieldErrors };
   }
@@ -213,11 +232,11 @@ function parseProductForm(
       categoryId,
       price: price ?? 0,
       initialStock: initialStockValue ?? 0,
-      creatorOrAuthor: optionalText(formData.get("creatorOrAuthor")),
-      brandPublisherLabel: optionalText(formData.get("brandPublisherLabel")),
+      creatorOrAuthor,
+      brandPublisherLabel,
       costPrice,
       condition: condition as ProductConditionValue | null,
-      supplier: optionalText(formData.get("supplier")),
+      supplier,
       barcode: optionalText(formData.get("barcode")),
       sku: optionalText(formData.get("sku")),
       isbn: optionalText(formData.get("isbn")),
@@ -229,6 +248,33 @@ function parseProductForm(
 
 function toNullable(value: string) {
   return value === "" ? null : value;
+}
+
+async function resolveCategorySlug(categoryId: string): Promise<string | null> {
+  const normalizedId = categoryId.trim();
+  if (!normalizedId) {
+    return null;
+  }
+
+  if (!shouldQuerySupabaseTables()) {
+    return (
+      getFallbackCategories().find((category) => category.id === normalizedId)
+        ?.slug ?? null
+    );
+  }
+
+  const supabase = (await createClient() as unknown) as SupabaseTableClient;
+  const { data, error } = await supabase
+    .from<Category>("categories")
+    .select("slug")
+    .eq("id", normalizedId)
+    .single();
+
+  if (error) {
+    return null;
+  }
+
+  return data?.slug ?? null;
 }
 
 function fallbackProduct(values: ProductFormValues): Omit<Product, "id" | "createdAt" | "updatedAt"> {
@@ -334,7 +380,10 @@ export async function createProduct(
 ): Promise<ProductFormState> {
   const duplicateConfirmed = optionalText(formData.get("duplicateConfirmed")) === "1";
   const draftFromSubmit = productFormDraftFromFormData(formData);
-  const parsed = parseProductForm(formData, "create");
+  const categorySlug = await resolveCategorySlug(
+    optionalText(formData.get("categoryId")),
+  );
+  const parsed = parseProductForm(formData, "create", categorySlug);
 
   if (!parsed.values) {
     return {
@@ -543,7 +592,10 @@ export async function updateProduct(
     };
   }
 
-  const parsed = parseProductForm(formData, "edit");
+  const categorySlug = await resolveCategorySlug(
+    optionalText(formData.get("categoryId")),
+  );
+  const parsed = parseProductForm(formData, "edit", categorySlug);
 
   if (!parsed.values) {
     return {

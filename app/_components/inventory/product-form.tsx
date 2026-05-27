@@ -7,6 +7,7 @@ import type {
   Product,
   ProductConditionValue,
 } from '@/lib/inventory/types';
+import { categoryRequiresMediaMetadata } from '@/lib/inventory/category-metadata-requirements';
 import {
   createProduct,
   updateProduct,
@@ -135,6 +136,16 @@ export function ProductForm({
   );
   const draftFingerprint = state.draft ? JSON.stringify(state.draft) : null;
   const fields = fieldOverride ?? state.draft ?? localFields;
+  const selectedCategorySlug = useMemo(
+    () =>
+      categories.find((category) => category.id === fields.categoryId)?.slug ??
+      null,
+    [categories, fields.categoryId],
+  );
+  const requiresMediaMetadata = useMemo(
+    () => categoryRequiresMediaMetadata(selectedCategorySlug),
+    [selectedCategorySlug],
+  );
 
   const returnStatus = useMemo(() => {
     if (returnTo.includes('estado=archived')) {
@@ -382,24 +393,34 @@ export function ProductForm({
           </Field>
         )}
 
-        <Field label="Creador / autor">
+        <Field
+          label="Creador / autor"
+          error={fieldErrors.creatorOrAuthor}
+          required={requiresMediaMetadata}
+        >
           <input
             name="creatorOrAuthor"
             value={fields.creatorOrAuthor}
             onChange={(event) =>
               updateField('creatorOrAuthor', event.target.value)
             }
+            required={requiresMediaMetadata}
             className="field-control"
           />
         </Field>
 
-        <Field label="Editorial / marca / sello">
+        <Field
+          label="Editorial / marca / sello"
+          error={fieldErrors.brandPublisherLabel}
+          required={requiresMediaMetadata}
+        >
           <input
             name="brandPublisherLabel"
             value={fields.brandPublisherLabel}
             onChange={(event) =>
               updateField('brandPublisherLabel', event.target.value)
             }
+            required={requiresMediaMetadata}
             className="field-control"
           />
         </Field>
@@ -416,11 +437,16 @@ export function ProductForm({
           />
         </Field>
 
-        <Field label="Estado" error={fieldErrors.condition}>
+        <Field
+          label="Estado"
+          error={fieldErrors.condition}
+          required={requiresMediaMetadata}
+        >
           <select
             name="condition"
             value={fields.condition}
             onChange={(event) => updateField('condition', event.target.value)}
+            required={requiresMediaMetadata}
             className="field-control"
           >
             <option value="">Sin especificar</option>
@@ -432,11 +458,16 @@ export function ProductForm({
           </select>
         </Field>
 
-        <Field label="Proveedor">
+        <Field
+          label="Proveedor"
+          error={fieldErrors.supplier}
+          required={requiresMediaMetadata}
+        >
           <input
             name="supplier"
             value={fields.supplier}
             onChange={(event) => updateField('supplier', event.target.value)}
+            required={requiresMediaMetadata}
             className="field-control"
           />
         </Field>
