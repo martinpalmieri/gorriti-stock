@@ -32,6 +32,44 @@ export type DuplicateCandidate = {
 const EDITION_SUFFIX_PATTERN =
   /^(?:#\s*)?(?:(?:vol|volumen|parte|tomo|tom)\.?\s*)?(?:\d{1,3}|[ivxlc]+)$/iu;
 
+const PRODUCT_DIFFERENTIATOR_WORDS = new Set([
+  'regular',
+  'passport',
+  'cover',
+  'refill',
+  'sticker',
+  'sketch',
+  'watercolor',
+  'cream',
+  'pocket',
+  'mini',
+  'large',
+  'small',
+  'medium',
+  'camel',
+  'olive',
+  'black',
+  'white',
+  'red',
+  'blue',
+  'green',
+  'brown',
+  'grey',
+  'gray',
+  'pink',
+  'yellow',
+  'orange',
+  'purple',
+  'md',
+  'grid',
+  'lined',
+  'blank',
+  'dot',
+  'release',
+]);
+
+const PRODUCT_CODE_PATTERN = /\b\d{2,4}\b/u;
+
 function removeAccents(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
@@ -51,30 +89,6 @@ function normalizeIdentifier(value: string) {
     .replace(/[^\p{L}\p{N}]/gu, '');
 }
 
-function getSignificantWords(value: string) {
-  return normalizeText(value)
-    .split(' ')
-    .map((word) => word.trim())
-    .filter((word) => word.length >= 3);
-}
-
-function firstSignificantWordsMatch(left: string, right: string) {
-  const leftWords = getSignificantWords(left);
-  const rightWords = getSignificantWords(right);
-  if (leftWords.length === 0 || rightWords.length === 0) {
-    return false;
-  }
-
-  const wordsToCheck = Math.min(2, leftWords.length, rightWords.length);
-  for (let index = 0; index < wordsToCheck; index += 1) {
-    if (leftWords[index] !== rightWords[index]) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 /** True when longer is shorter + only an edition/volume suffix (e.g. "… Mo 2"). */
 export function isEditionOnlySuffix(longer: string, shorter: string) {
   if (longer.length <= shorter.length || !longer.startsWith(shorter)) {
@@ -89,36 +103,48 @@ export function isEditionOnlySuffix(longer: string, shorter: string) {
   return EDITION_SUFFIX_PATTERN.test(suffix);
 }
 
-function namesIncludeSimilar(inputName: string, candidateName: string) {
-  if (inputName.length === 0 || candidateName.length === 0) {
-    return false;
-  }
-
-  if (inputName === candidateName) {
-    return false;
-  }
-
-  if (inputName.includes(candidateName)) {
-    if (
-      inputName.length > candidateName.length &&
-      isEditionOnlySuffix(inputName, candidateName)
-    ) {
-      return false;
-    }
+function suffixHasProductDifferentiators(suffix: string) {
+  if (PRODUCT_CODE_PATTERN.test(suffix)) {
     return true;
   }
 
-  if (candidateName.includes(inputName)) {
-    if (
-      candidateName.length > inputName.length &&
-      isEditionOnlySuffix(candidateName, inputName)
-    ) {
-      return false;
-    }
-    return true;
+  const words = normalizeText(suffix).split(' ').filter((word) => word.length > 0);
+  return words.some((word) => PRODUCT_DIFFERENTIATOR_WORDS.has(word));
+}
+
+export function namesAreExactlyEqual(left: string, right: string) {
+  const leftName = normalizeText(left);
+  const rightName = normalizeText(right);
+  return leftName.length > 0 && leftName === rightName;
+}
+
+export function namesAreLikelySameProduct(left: string, right: string) {
+  const leftName = normalizeText(left);
+  const rightName = normalizeText(right);
+
+  if (leftName.length === 0 || rightName.length === 0 || leftName === rightName) {
+    return false;
   }
 
-  return false;
+  const [shorter, longer] =
+    leftName.length <= rightName.length
+      ? [leftName, rightName]
+      : [rightName, leftName];
+
+  if (!longer.startsWith(shorter)) {
+    return false;
+  }
+
+  if (isEditionOnlySuffix(longer, shorter)) {
+    return false;
+  }
+
+  const suffix = longer.slice(shorter.length).trim();
+  if (!suffix) {
+    return false;
+  }
+
+  return !suffixHasProductDifferentiators(suffix);
 }
 
 function buildDuplicateMatch(input: {
@@ -157,21 +183,8 @@ function buildDuplicateMatch(input: {
     candidate.categoryId.length > 0 &&
     values.categoryId === candidate.categoryId;
 
-  const inputName = normalizeText(values.name);
-  const candidateName = normalizeText(candidate.name);
-  const editionVariant =
-    inputName.length > 0 &&
-    candidateName.length > 0 &&
-    (isEditionOnlySuffix(inputName, candidateName) ||
-      isEditionOnlySuffix(candidateName, inputName));
-  const namesEqual = inputName.length > 0 && inputName === candidateName;
-  const namesInclude = namesIncludeSimilar(inputName, candidateName);
-  const namesFirstWordsMatch =
-    !editionVariant &&
-    firstSignificantWordsMatch(values.name, candidate.name);
-  const nameLooksSimilar =
-    !editionVariant &&
-    (namesEqual || namesInclude || namesFirstWordsMatch);
+  const namesEqual = namesAreExactlyEqual(values.name, candidate.name);
+  const namesLikelySame = namesAreLikelySameProduct(values.name, candidate.name);
 
   const inputCreator = normalizeText(values.creatorOrAuthor);
   const candidateCreator = normalizeText(candidate.creatorOrAuthor);
@@ -187,11 +200,12 @@ function buildDuplicateMatch(input: {
     candidateBrand.length > 0 &&
     inputBrand === candidateBrand;
 
-  const textDuplicateInSameCategory =
-    sameCategory &&
-    (namesEqual || (nameLooksSimilar && (sameCreator || sameBrand)));
+  const exactNameDuplicate =
+    namesEqual && (sameCategory || sameCreator || sameBrand);
+  const similarNameDuplicate =
+    namesLikelySame && sameCategory && (sameCreator || sameBrand);
 
-  if (textDuplicateInSameCategory) {
+  if (exactNameDuplicate || similarNameDuplicate) {
     if (namesEqual) {
       reasons.push('Nombre o título idéntico');
     } else {
@@ -207,7 +221,7 @@ function buildDuplicateMatch(input: {
     }
   }
 
-  if (strength !== 'strong' && !textDuplicateInSameCategory) {
+  if (strength !== 'strong' && !exactNameDuplicate && !similarNameDuplicate) {
     return null;
   }
 
