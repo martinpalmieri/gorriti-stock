@@ -6,6 +6,7 @@ import type { SupabaseTableClient } from "@/lib/inventory/supabase-types";
 import type { Category, Product, ProductConditionValue } from "./types";
 import { getFallbackCategories, getFallbackProducts } from "./mock-store";
 import { INVENTORY_PAGE_SIZE } from "./pagination";
+import { productMatchesSearch } from "./product-search";
 
 type ProductRow = Database["public"]["Tables"]["products"]["Row"] & {
   categories: Pick<Database["public"]["Tables"]["categories"]["Row"], "name"> | null;
@@ -77,50 +78,6 @@ export type InventoryQueryResult = {
   error: string | null;
 };
 
-const SEARCH_FIELDS = [
-  "name",
-  "creator_or_author",
-  "brand_publisher_label",
-  "barcode",
-  "sku",
-  "isbn",
-  "notes",
-] as const;
-
-function escapeIlikePattern(value: string) {
-  // PostgREST `or` filter uses commas, parentheses, and quotes as delimiters.
-  // Escape them along with ilike wildcards so user input is treated literally.
-  return value.replace(/([\\%_,()"])/g, "\\$1");
-}
-
-function buildSearchOrFilter(term: string, fields: readonly string[]) {
-  const escaped = escapeIlikePattern(term);
-  return fields.map((field) => `${field}.ilike.*${escaped}*`).join(",");
-}
-
-function removeAccents(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-function normalizeForMatch(value: string) {
-  return removeAccents(value).toLocaleLowerCase("es").trim();
-}
-
-function productMatchesSearch(product: Product, query: string) {
-  const normalized = normalizeForMatch(query);
-  if (!normalized) return true;
-
-  return [
-    product.name,
-    product.creatorOrAuthor,
-    product.brandPublisherLabel,
-    product.barcode,
-    product.sku,
-    product.isbn,
-    product.notes,
-  ].some((field) => normalizeForMatch(field).includes(normalized));
-}
-
 export async function getInventoryData(
   input?: InventoryQuery,
 ): Promise<InventoryQueryResult> {
@@ -182,13 +139,11 @@ export async function getInventoryData(
     productsQuery = productsQuery.eq("current_stock", 0);
   }
 
-  if (search) {
-    productsQuery = productsQuery.or(buildSearchOrFilter(search, SEARCH_FIELDS));
-  }
+  productsQuery = productsQuery.order("updated_at", { ascending: false });
 
-  productsQuery = productsQuery
-    .order("updated_at", { ascending: false })
-    .range(offset, offset + limit - 1);
+  if (!search) {
+    productsQuery = productsQuery.range(offset, offset + limit - 1);
+  }
 
   const categoriesQuery = includeCategories
     ? supabase.from<Category>("categories").select("id, name, slug").order("name")
@@ -217,11 +172,24 @@ export async function getInventoryData(
   }
 
   const rows = productsResult.data ?? [];
-  const products = rows.map((row) => mapProduct(row));
+  const mapped = rows.map((row) => mapProduct(row));
+
+  if (search) {
+    const filtered = mapped.filter((product) =>
+      productMatchesSearch(product, search),
+    );
+    const products = filtered.slice(offset, offset + limit);
+    return {
+      categories: includeCategories ? (categoriesResult.data ?? []) : null,
+      products,
+      hasMore: filtered.length > offset + products.length,
+      error: null,
+    };
+  }
 
   return {
     categories: includeCategories ? (categoriesResult.data ?? []) : null,
-    products,
+    products: mapped,
     hasMore: rows.length === limit,
     error: null,
   };

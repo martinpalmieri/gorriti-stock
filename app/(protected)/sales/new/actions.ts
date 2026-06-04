@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { shouldQuerySupabaseTables } from "@/lib/supabase/should-query-supabase-tables";
 import type { SupabaseTableClient } from "@/lib/inventory/supabase-types";
 import { SALES_NEW_PAGE_SIZE } from "@/lib/inventory/pagination";
+import { saleProductMatchesSearch } from "@/lib/inventory/product-search";
 
 type PaymentMethod = "manual_sumup" | "cash";
 
@@ -48,44 +49,6 @@ export type ListActiveProductsForSaleInput = {
   search?: string;
   offset?: number;
 };
-
-const SALE_SEARCH_FIELDS = [
-  "name",
-  "creator_or_author",
-  "barcode",
-  "sku",
-  "isbn",
-] as const;
-
-function escapeIlikePattern(value: string) {
-  return value.replace(/([\\%_,()"])/g, "\\$1");
-}
-
-function buildSearchOrFilter(term: string, fields: readonly string[]) {
-  const escaped = escapeIlikePattern(term);
-  return fields.map((field) => `${field}.ilike.*${escaped}*`).join(",");
-}
-
-function removeAccents(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-function normalizeForMatch(value: string) {
-  return removeAccents(value).toLocaleLowerCase("es").trim();
-}
-
-function mockMatchesSearch(product: SaleProduct, search: string) {
-  const normalized = normalizeForMatch(search);
-  if (!normalized) return true;
-  return [
-    product.title,
-    product.creator,
-    product.category,
-    product.barcode,
-    product.sku,
-    product.isbn ?? "",
-  ].some((field) => normalizeForMatch(field).includes(normalized));
-}
 
 type ConfirmSaleInput = {
   items: Array<{ productId: string; quantity: number }>;
@@ -186,7 +149,7 @@ export async function listActiveProductsForSale(
 
   if (!shouldQuerySupabaseTables()) {
     const filtered = mockedProducts.filter((product) =>
-      mockMatchesSearch(product, search),
+      saleProductMatchesSearch(product, search),
     );
     const page = filtered.slice(offset, offset + limit);
     return {
@@ -217,15 +180,14 @@ export async function listActiveProductsForSale(
       .select(
         "id, name, creator_or_author, price, current_stock, barcode, sku, isbn, is_active, categories(name)",
       )
-      .eq("is_active", true);
+      .eq("is_active", true)
+      .order("name", { ascending: true });
 
-    if (search) {
-      query = query.or(buildSearchOrFilter(search, SALE_SEARCH_FIELDS));
+    if (!search) {
+      query = query.range(offset, offset + limit - 1);
     }
 
-    return query
-      .order("name", { ascending: true })
-      .range(offset, offset + limit - 1);
+    return query;
   });
 
   if (error) {
@@ -239,7 +201,7 @@ export async function listActiveProductsForSale(
   }
 
   const rows = data ?? [];
-  const products: SaleProduct[] = rows.map((row: ProductRow) => ({
+  const mapped: SaleProduct[] = rows.map((row: ProductRow) => ({
     id: row.id,
     title: row.name ?? "",
     creator: row.creator_or_author ?? "",
@@ -251,9 +213,22 @@ export async function listActiveProductsForSale(
     isbn: row.isbn ?? undefined,
   }));
 
+  if (search) {
+    const filtered = mapped.filter((product) =>
+      saleProductMatchesSearch(product, search),
+    );
+    const products = filtered.slice(offset, offset + limit);
+    return {
+      status: "success",
+      products,
+      hasMore: filtered.length > offset + products.length,
+      source: "supabase",
+    };
+  }
+
   return {
     status: "success",
-    products,
+    products: mapped,
     hasMore: rows.length === limit,
     source: "supabase",
   };
