@@ -60,6 +60,7 @@ type ConfirmSaleResult =
   | {
       status: "success";
       saleId: string;
+      ticketNumber: string;
       totalAmount: string;
       itemCount: number;
       paymentMethod: PaymentMethod;
@@ -283,6 +284,7 @@ export async function confirmSale(input: ConfirmSaleInput): Promise<ConfirmSaleR
     return {
       status: "success",
       saleId: "mock-sale",
+      ticketNumber: "GS-2026-000001",
       totalAmount: (totalCents / 100).toFixed(2),
       itemCount,
       paymentMethod,
@@ -309,6 +311,7 @@ export async function confirmSale(input: ConfirmSaleInput): Promise<ConfirmSaleR
     sale_id: string;
     total_amount: string;
     item_count: number;
+    ticket_number: string;
   };
 
   const rows = Array.isArray(data) ? (data as ConfirmSaleRpcRow[]) : null;
@@ -324,6 +327,7 @@ export async function confirmSale(input: ConfirmSaleInput): Promise<ConfirmSaleR
   return {
     status: "success",
     saleId: String(row.sale_id),
+    ticketNumber: String(row.ticket_number ?? ""),
     totalAmount: String(row.total_amount ?? "0.00"),
     itemCount: Number(row.item_count ?? 0),
     paymentMethod,

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import type { SaleDetail, SaleListItem } from '@/app/(protected)/sales/actions';
 import { getSaleDetail } from '@/app/(protected)/sales/actions';
 import { paymentMethodLabel } from '@/lib/sales/payment-method';
+import { LinkButton } from '../ui/button';
 
 type SalesListProps = {
   sales: SaleListItem[];
@@ -178,6 +179,14 @@ export function SalesList({
 
         {selectedSale && resolvedDetail ? (
           <div className="mt-5 space-y-4">
+            <LinkButton
+              href={`/sales/${resolvedDetail.id}/ticket`}
+              variant="secondary"
+              className="w-full"
+            >
+              Ver ticket
+            </LinkButton>
+
             <dl className="grid gap-3 text-sm">
               <div className="flex justify-between gap-4 rounded-md bg-stone-50 p-3 ring-1 ring-stone-200">
                 <dt className="font-semibold text-stone-600">Fecha</dt>

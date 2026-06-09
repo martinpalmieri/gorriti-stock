@@ -11,7 +11,7 @@ type SidebarProps = {
 
 export function Sidebar({ pathname, userEmail }: SidebarProps) {
   return (
-    <aside className="border-b border-stone-200 bg-white px-4 py-4 lg:min-h-screen lg:w-64 lg:border-b-0 lg:border-r lg:px-4 lg:py-5">
+    <aside className="border-b border-stone-200 bg-white px-4 py-4 lg:min-h-screen lg:w-64 lg:border-b-0 lg:border-r lg:px-4 lg:py-5 print:hidden">
       <div className="flex flex-col gap-6 lg:sticky lg:top-8">
         <Brand />
         <SidebarNav pathname={pathname} />

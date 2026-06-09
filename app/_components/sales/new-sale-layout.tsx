@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import { Button } from '../ui/button';
+import { Button, LinkButton } from '../ui/button';
 import type { SaleProduct } from '@/app/(protected)/sales/new/actions';
 import {
   confirmSale,
@@ -26,6 +26,7 @@ type SuccessSale = {
   itemCount: number;
   paymentMethod: PaymentMethod;
   saleId: string;
+  ticketNumber: string;
 };
 
 type ProductsResult =
@@ -275,6 +276,7 @@ export function NewSaleLayout({
 
       setSuccessSale({
         saleId: result.saleId,
+        ticketNumber: result.ticketNumber,
         totalAmount: result.totalAmount,
         itemCount: result.itemCount,
         paymentMethod: result.paymentMethod,
@@ -655,9 +657,20 @@ export function NewSaleLayout({
               {successSale.itemCount === 1 ? '' : 'es'} · Pago:{' '}
               {paymentMethodLabel(successSale.paymentMethod)}.
             </p>
-            <p className="mt-2 text-sm text-emerald-900">
-              ID de venta: {successSale.saleId}.
-            </p>
+            {successSale.ticketNumber ? (
+              <p className="mt-2 text-sm text-emerald-900">
+                Nº ticket: {successSale.ticketNumber}.
+              </p>
+            ) : null}
+            <div className="mt-3">
+              <LinkButton
+                href={`/sales/${successSale.saleId}/ticket`}
+                variant="secondary"
+                className="w-full border-emerald-300 bg-white text-emerald-950 hover:bg-emerald-100"
+              >
+                Imprimir ticket
+              </LinkButton>
+            </div>
           </div>
         ) : null}
       </aside>
