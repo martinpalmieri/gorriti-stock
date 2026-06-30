@@ -125,6 +125,8 @@ export function SaleTicket({ sale }: SaleTicketProps) {
           <p className="ticket-footer mt-4 text-center">Gracias por tu compra</p>
           <p className="ticket-footer text-center">www.gorriti.eu</p>
         </footer>
+
+        <div className="ticket-feed-space" aria-hidden="true" />
       </article>
 
       <style jsx global>{`
@@ -213,15 +215,28 @@ export function SaleTicket({ sale }: SaleTicketProps) {
           line-height: 1.3;
         }
 
+        /* Feed space only matters on the physical roll; hide it on screen. */
+        .ticket-feed-space {
+          display: none;
+        }
+
         @media print {
+          /*
+           * Fixed page height instead of "auto": some thermal printer drivers
+           * treat an "auto" height page as a fixed short page and cut/break the
+           * receipt before the footer. A tall fixed page keeps the ticket on a
+           * single continuous block; the printer's own cutter handles the cut.
+           */
           @page {
-            size: 80mm auto;
+            size: 80mm 200mm;
             margin: 4mm;
           }
 
           html,
           body {
+            width: 80mm;
             margin: 0 !important;
+            padding: 0 !important;
             background: #fff !important;
           }
 
@@ -243,6 +258,22 @@ export function SaleTicket({ sale }: SaleTicketProps) {
             color: #000;
             background: #fff;
             box-shadow: none !important;
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+
+          .ticket-print header,
+          .ticket-print section,
+          .ticket-print footer,
+          .ticket-print tr {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+
+          /* Bottom feed so the last printed line clears the cutter. */
+          .ticket-feed-space {
+            display: block;
+            height: 12mm;
           }
         }
       `}</style>
