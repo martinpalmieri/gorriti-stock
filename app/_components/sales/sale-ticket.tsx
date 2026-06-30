@@ -222,14 +222,16 @@ export function SaleTicket({ sale }: SaleTicketProps) {
 
         @media print {
           /*
-           * Fixed page height instead of "auto": some thermal printer drivers
-           * treat an "auto" height page as a fixed short page and cut/break the
-           * receipt before the footer. A tall fixed page keeps the ticket on a
-           * single continuous block; the printer's own cutter handles the cut.
+           * size: auto -> the page height is driven by the ticket content, so
+           * the roll only feeds as much paper as needed (no long blank tail).
+           * margin: 0 -> removes the browser-generated header/footer (URL, date,
+           * document title, page number). The browser only draws those in the
+           * @page margin area, so zero margin strips them. Side spacing is
+           * handled by centering the 72mm ticket inside the 80mm page.
            */
           @page {
-            size: 80mm 200mm;
-            margin: 4mm;
+            size: 80mm auto;
+            margin: 0;
           }
 
           html,
@@ -270,10 +272,10 @@ export function SaleTicket({ sale }: SaleTicketProps) {
             page-break-inside: avoid;
           }
 
-          /* Bottom feed so the last printed line clears the cutter. */
+          /* Small bottom feed so the last printed line clears the cutter. */
           .ticket-feed-space {
             display: block;
-            height: 12mm;
+            height: 6mm;
           }
         }
       `}</style>
